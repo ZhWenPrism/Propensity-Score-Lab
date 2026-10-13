@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="用模拟患者数据直观理解倾向评分匹配、逆概率加权与重叠加权。">
+  <title>倾向评分实验室 · PSM / IPTW / OW</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">PS</span><span>倾向评分实验室</span></div>
+    <a class="top-link" href="#how">方法说明 ↗</a>
+  </header>
+  <main id="main">
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">交互式教学 DEMO · 全部为模拟数据</span>
+        <h1>两组患者原本不同，<br><em>怎样让比较更公平？</em></h1>
+        <p>从真实世界研究常见的“先用药、后回看疗效”出发，亲手试试 PSM、IPTW 和 OW。先看两组的差异，再看配对或加权怎样改变比较的人群。</p>
+      </div>
+      <div class="hero-note"><span>核心问题</span><strong>接受治疗的概率<br>≠<br>治疗有效的概率</strong><small>PS 只由用药前的特征估计</small></div>
+    </section>
+
+    <section class="control-panel" aria-labelledby="scenario-title">
+      <div><div class="section-kicker">01 / 选择场景</div><h2 id="scenario-title">让治疗分配发生变化</h2><p>每个场景都重新生成一批模拟患者，疗效数据由同一套示例规则生成。</p></div>
+      <div class="controls"><label for="scenario">治疗选择偏向</label><select id="scenario"><option value="mild">较弱：两组本来较接近</option><option value="moderate" selected>中等：重症患者更常用药</option><option value="strong">很强：两组重叠不足</option></select><button id="regenerate" type="button">↻ 换一批患者</button></div>
+    </section>
+
+    <section class="metric-strip" aria-label="当前样本概况">
+      <div><span>模拟患者</span><strong id="total-count">—</strong></div>
+      <div><span>接受药物 A</span><strong id="treated-count">—</strong></div>
+      <div><span>接受常规治疗</span><strong id="control-count">—</strong></div>
+      <div><span>原始最大差异</span><strong id="baseline-smd">—</strong><small>各协变量 |SMD| 最大值</small></div>
+    </section>
+
+    <section class="content-grid" aria-label="倾向评分与方法比较">
+      <article class="card ps-card">
+        <div class="card-heading"><div><div class="section-kicker">02 / 倾向评分</div><h2>PS 是怎么来的？</h2></div><span class="mini-badge">e(X) = P(A=1 | X)</span></div>
+        <p>网页用患者<span class="highlight">用药前</span>的年龄、病情严重度和肾功能，拟合一个 Logistic 模型，估计每位患者接受药物 A 的概率。这里不把疗效放进模型。</p>
+        <div class="ps-scale" aria-hidden="true"><span>0</span><div class="scale-track"><i></i></div><span>1</span></div>
+        <div class="ps-caption"><span>更可能接受常规治疗</span><span>更可能接受药物 A</span></div>
+        <div id="ps-chart" class="ps-chart" role="img" aria-label="两组患者倾向评分分布"></div>
+        <div class="legend"><span><i class="dot teal"></i>药物 A</span><span><i class="dot coral"></i>常规治疗</span></div>
+      </article>
+
+      <article class="card method-card">
+        <div class="card-heading"><div><div class="section-kicker">03 / 选择方法</div><h2>同一批患者，三种处理</h2></div></div>
+        <div class="method-tabs" role="tablist" aria-label="倾向评分方法">
+          <button class="method-tab active" id="tab-psm" role="tab" aria-selected="true" aria-controls="method-panel" data-method="psm">PSM <small>找相似的人</small></button>
+          <button class="method-tab" id="tab-iptw" role="tab" aria-selected="false" aria-controls="method-panel" data-method="iptw">IPTW <small>给少见者更多分量</small></button>
+          <button class="method-tab" id="tab-ow" role="tab" aria-selected="false" aria-controls="method-panel" data-method="ow">OW <small>重视两组交集</small></button>
+        </div>
+        <div id="method-panel" role="tabpanel" aria-labelledby="tab-psm">
+          <div class="method-summary"><strong id="method-title">—</strong><p id="method-description">—</p></div>
+          <div class="formula-box"><span>这个人如何参与分析</span><code id="method-formula">—</code><small id="formula-note">—</small></div>
+          <div class="method-stats"><div><span id="stat-one-label">—</span><strong id="stat-one">—</strong></div><div><span id="stat-two-label">—</span><strong id="stat-two">—</strong></div></div>
+          <p class="target-note" id="target-note">—</p>
+        </div>
+      </article>
+    </section>
+
+    <section class="results-section" aria-labelledby="results-title">
+      <div class="results-heading"><div><div class="section-kicker">04 / 看结果</div><h2 id="results-title">两组真的更接近了吗？</h2><p>标准化均数差（SMD）越接近 0，两组在该项用药前特征上越相似。虚线 0.1 仅作常用参考线，仍需结合研究背景判断。</p></div><div class="result-legend"><span><i class="legend-line before"></i>处理前</span><span><i class="legend-line after"></i><span id="legend-after">PSM 后</span></span></div></div>
+      <div class="results-grid"><article class="card balance-card"><h3>基线特征差异 <small>|SMD|</small></h3><div id="balance-bars"></div><p id="balance-comment" class="callout">—</p></article><article class="card effect-card"><h3>示例疗效比较</h3><p>结局：30 天症状改善分数，分数越高表示改善越大。</p><div class="effect-compare"><div><span>直接比较</span><strong id="naive-effect">—</strong></div><div><span id="adjusted-label">PSM 后比较</span><strong id="adjusted-effect">—</strong></div></div><div class="truth-note">模拟数据生成时设定的治疗作用：<strong>+8 分</strong>。单次抽样结果会波动，接近 +8 不代表某方法普遍最优。</div><p class="muted">这些数字仅用于演示混杂与调整；不能据此推断真实药物疗效。</p></article></div>
+    </section>
+
+    <section class="patient-section" aria-labelledby="patient-title"><div class="results-heading"><div><div class="section-kicker">05 / 看具体的人</div><h2 id="patient-title">权重到底落在谁身上？</h2><p id="patient-intro">—</p></div><label class="table-search">筛选患者 <input id="patient-search" type="search" placeholder="输入编号，如 P023"></label></div><div class="table-wrap"><table><thead><tr><th>患者</th><th>治疗</th><th>年龄</th><th>严重度</th><th>肾功能</th><th>PS</th><th id="method-column">配对结果</th></tr></thead><tbody id="patient-rows"></tbody></table></div><p class="table-note">表格最多展示 16 人；筛选后仍按 PS 从低到高排列。匹配和权重的计算使用全部 240 人。</p></section>
+
+    <section id="how" class="how-section" aria-labelledby="how-title"><div class="section-kicker">读完这个演示，还要记住</div><h2 id="how-title">“平衡”是检查结果，不是方法名称</h2><div class="principles"><div><b>01</b><h3>先定问题，再选方法</h3><p>PSM 这里比较成功配对的用药患者；IPTW 面向总体平均效应；OW 面向两组治疗选择都常见的人。三者目标人群不同。</p></div><div><b>02</b><h3>检查各项基线特征</h3><p>看处理前后的 SMD、PS 分布、匹配后保留人数，以及 IPTW 的最大权重和有效样本量。不能只看一个总分。</p></div><div><b>03</b><h3>仍有研究前提</h3><p>未测量的混杂因素、用药后的指标、治疗与结局的时间顺序，都不能靠 PS 自动解决。真实研究须先明确设计，再进行分析。</p></div></div><div class="source-note">方法参考：<a href="https://doi.org/10.1093/biomet/70.1.41" target="_blank" rel="noopener">Rosenbaum & Rubin (1983)</a> · <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4626409/" target="_blank" rel="noopener">Austin & Stuart (2015)</a> · <a href="https://doi.org/10.1080/01621459.2016.1260466" target="_blank" rel="noopener">Li et al. (2018)</a></div></section>
+  </main>
+  <footer><span>倾向评分实验室 · 教学演示</span><span>仅模拟数据 · 无真实患者信息</span></footer>
+</body>
+</html>
