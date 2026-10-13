@@ -13,31 +13,20 @@ const SCENARIOS = {
 };
 const METHOD = {
   psm: {
-    title: "PSM：为用药者找相似对照",
-    description: "按 PS 的 logit 距离做 1:1 最近邻配对，设定 0.2 × 标准差的卡钳，不重复使用对照患者。配不到的人本次不参与疗效比较。",
-    formula: "配对成功 → 参与；未配对 → 不参与",
-    note: "下面的患者表会显示具体配对对象。",
-    target: "这里估计的是成功配对的用药患者中的平均差异，不能自动推广到全部患者。"
+    formula: "1:1 最近邻匹配 · 0.2 SD 卡钳"
   },
   iptw: {
-    title: "IPTW：让少见的治疗选择有更多分量",
-    description: "保留所有患者。某类患者越少接受其实际获得的治疗，代表性权重越大，尝试重建两组基线特征相近的加权人群。",
-    formula: "用药者：1 / PS；对照者：1 / (1 − PS)",
-    note: "例如 PS = 0.8：实际用药权重 1.25，实际未用药权重 5。",
-    target: "目标是原研究人群的平均治疗效应（ATE）；极端权重可能让结果很不稳定。"
+    formula: "药物 A：1 / PS · 对照：1 / (1 − PS)"
   },
   ow: {
-    title: "OW：重点比较两组有交集的人",
-    description: "保留所有患者，但对只能找到很少可比对象的人给较小权重。PS 接近 0.5 的患者通常获得较多综合关注。",
-    formula: "用药者：1 − PS；对照者：PS",
-    note: "例如 PS = 0.8：实际用药权重 0.2，实际未用药权重 0.8。",
-    target: "目标是治疗选择存在重叠的患者中的平均效应（ATO），不同于总体 ATE。"
+    formula: "药物 A：1 − PS · 对照：PS"
   }
 };
 
-let state = { seed: 20261013, scenario: "moderate", method: "psm", patients: [], match: null };
+let state = { seed: 20261013, scenario: "moderate", method: "psm", patients: [], match: null, selectedId: "P001", page: 0 };
 const $ = id => document.getElementById(id);
 const fmt = (v, digits = 2) => Number.isFinite(v) ? v.toFixed(digits) : "—";
+const fmtPS = v => v < 0.0005 ? "<0.001" : v > 0.9995 ? ">0.999" : fmt(v, 3);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const logistic = x => 1 / (1 + Math.exp(-clamp(x, -30, 30)));
 const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
@@ -196,19 +185,15 @@ function renderMethod(rows, ws, match) {
     tab.classList.toggle("active", active);
     tab.setAttribute("aria-selected", active ? "true" : "false");
   });
-  $("method-panel").setAttribute("aria-labelledby", `tab-${method}`);
-  $("method-title").textContent = meta.title;
-  $("method-description").textContent = meta.description;
+  $("method-content").setAttribute("aria-labelledby", `tab-${method}`);
   $("method-formula").textContent = meta.formula;
-  $("formula-note").textContent = meta.note;
-  $("target-note").textContent = meta.target;
   if (method === "psm") {
     $("stat-one-label").textContent = "成功配对";
     $("stat-one").textContent = `${match.pairs.length} 对`;
     $("stat-two-label").textContent = "未进入分析";
     $("stat-two").textContent = `${rows.length - 2 * match.pairs.length} 人`;
   } else {
-    $("stat-one-label").textContent = "两组有效样本量 ESS";
+    $("stat-one-label").textContent = "有效样本量 ESS · A / 对照";
     $("stat-one").textContent = `${Math.round(ess(rows, ws, 1))} / ${Math.round(ess(rows, ws, 0))}`;
     $("stat-two-label").textContent = "最大个人权重";
     $("stat-two").textContent = fmt(Math.max(...ws), method === "iptw" ? 1 : 2);
@@ -222,7 +207,7 @@ function renderBalance(rows, ws) {
   const beforeMax = Math.max(...values.map(v => v.before)), afterMax = Math.max(...values.map(v => v.after));
   const callout = $("balance-comment");
   callout.classList.toggle("warn", afterMax >= 0.1);
-  callout.textContent = `最大 |SMD|：${fmt(beforeMax)} → ${fmt(afterMax)}。${afterMax < 0.1 ? "所展示的三项基线特征均低于 0.1 参考线。" : "至少一项仍高于 0.1，需检查模型、重叠与研究设计。"}`;
+  callout.textContent = `最大 |SMD|  ${fmt(beforeMax)} → ${fmt(afterMax)}  ·  ${afterMax < 0.1 ? "三项均 < 0.1" : "仍有 ≥ 0.1"}`;
   $("legend-after").textContent = `${state.method.toUpperCase()} 后`;
 }
 function renderEffect(rows, ws, match) {
@@ -230,28 +215,63 @@ function renderEffect(rows, ws, match) {
   $("naive-effect").textContent = `${effect(rows, before, "iptw", match) >= 0 ? "+" : ""}${fmt(effect(rows, before, "iptw", match), 1)} 分`;
   const adjusted = effect(rows, ws, state.method, match);
   $("adjusted-effect").textContent = Number.isFinite(adjusted) ? `${adjusted >= 0 ? "+" : ""}${fmt(adjusted, 1)} 分` : "无法估计";
-  $("adjusted-label").textContent = `${state.method.toUpperCase()} 后比较`;
+  $("adjusted-label").textContent = `${state.method.toUpperCase()} 后`;
+}
+function renderCohort(rows, ws, match) {
+  const maxWeight = Math.max(...ws, 1);
+  $("cohort-count").textContent = `${rows.length} 人`;
+  $("legend-dim").innerHTML = `<i class="dot faded"></i>${state.method === "psm" ? "未配对" : "较低权重"}`;
+  $("cohort-grid").innerHTML = rows.map((p, i) => {
+    const selected = p.id === state.selectedId;
+    const opacity = state.method === "psm" ? (ws[i] ? 1 : 0.22) : clamp(ws[i] / maxWeight, 0.22, 1);
+    const label = `${p.id}，${p.treated ? "药物 A" : "常规治疗"}，PS ${fmtPS(p.ps)}`;
+    return `<button type="button" class="patient-dot ${p.treated ? "treated" : "control"}${selected ? " selected" : ""}" data-id="${p.id}" style="opacity:${selected ? 1 : opacity}" aria-label="${label}" aria-pressed="${selected}"></button>`;
+  }).join("");
+}
+function renderSelected(rows, ws, match) {
+  const index = rows.findIndex(p => p.id === state.selectedId);
+  const p = rows[index < 0 ? 0 : index];
+  const weight = ws[index < 0 ? 0 : index];
+  $("selected-id").textContent = p.id;
+  $("selected-group").textContent = p.treated ? "药物 A" : "常规治疗";
+  $("selected-group").className = `treatment-tag ${p.treated ? "treated" : "control"}`;
+  $("selected-age").textContent = `${Math.round(p.age)} 岁`;
+  $("selected-severity").textContent = fmt(p.severity, 1);
+  $("selected-egfr").textContent = fmt(p.egfr, 0);
+  $("selected-outcome").textContent = `${fmt(p.improvement, 1)} 分`;
+  $("selected-ps").textContent = fmtPS(p.ps);
+  $("selected-method-label").textContent = state.method === "psm" ? "配对结果" : `${state.method.toUpperCase()} 权重`;
+  $("selected-method-value").textContent = state.method === "psm" ? (match.partner.has(p.id) ? `↔ ${match.partner.get(p.id)}` : "未配对") : fmt(weight, 3);
 }
 function renderPatients(rows, ws, match) {
-  const method = state.method;
-  $("method-column").textContent = method === "psm" ? "配对结果" : "个人权重";
-  $("patient-intro").textContent = method === "psm" ? "看谁找到配对对象、谁被排除。" : "看同一个患者在当前方法下占多大分量。";
+  $("method-column").textContent = state.method === "psm" ? "配对结果" : `${state.method.toUpperCase()} 权重`;
   const query = $("patient-search").value.trim().toLowerCase();
-  const ordered = rows.map((p, i) => ({ ...p, weight: ws[i] })).sort((a, b) => a.ps - b.ps);
-  const filtered = query ? ordered.filter(p => p.id.toLowerCase().includes(query)) : Array.from({ length: 16 }, (_, i) => ordered[Math.floor((i + 0.5) / 16 * ordered.length)]);
-  $("patient-rows").innerHTML = filtered.length ? filtered.slice(0, 16).map(p => `<tr><td><strong>${p.id}</strong></td><td><span class="treatment-tag ${p.treated ? "treated" : "control"}">${p.treated ? "药物 A" : "常规治疗"}</span></td><td>${Math.round(p.age)}</td><td>${fmt(p.severity, 1)}</td><td>${Math.round(p.egfr)}</td><td><strong>${p.ps < 0.0005 ? "<0.001" : p.ps > 0.9995 ? ">0.999" : fmt(p.ps, 3)}</strong></td><td>${method === "psm" ? (match.partner.has(p.id) ? `与 ${match.partner.get(p.id)} 配对` : "未配对") : fmt(p.weight, 2)}</td></tr>`).join("") : '<tr><td colspan="7">没有找到该编号的患者。</td></tr>';
+  const filtered = rows.map((p, i) => ({ ...p, weight: ws[i] })).filter(p => p.id.toLowerCase().includes(query));
+  const perPage = 20;
+  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
+  state.page = clamp(state.page, 0, pages - 1);
+  const visible = filtered.slice(state.page * perPage, (state.page + 1) * perPage);
+  $("patient-rows").innerHTML = visible.length ? visible.map(p => `<tr data-id="${p.id}" class="${p.id === state.selectedId ? "selected" : ""}"><td><strong>${p.id}</strong></td><td><span class="treatment-tag ${p.treated ? "treated" : "control"}">${p.treated ? "药物 A" : "常规治疗"}</span></td><td>${Math.round(p.age)}</td><td>${fmt(p.severity, 1)}</td><td>${Math.round(p.egfr)}</td><td><strong>${fmtPS(p.ps)}</strong></td><td>${fmt(p.improvement, 1)}</td><td>${state.method === "psm" ? (match.partner.has(p.id) ? `↔ ${match.partner.get(p.id)}` : "未配对") : fmt(p.weight, 3)}</td></tr>`).join("") : '<tr><td colspan="8">没有找到患者</td></tr>';
+  $("page-status").textContent = `${filtered.length ? state.page * perPage + 1 : 0}–${Math.min((state.page + 1) * perPage, filtered.length)} / ${filtered.length} 人`;
+  $("page-prev").disabled = state.page === 0;
+  $("page-next").disabled = state.page >= pages - 1;
 }
 function render() {
   const rows = state.patients, match = state.match, ws = weights(rows, state.method, match);
-  renderBasics(rows); renderMethod(rows, ws, match); renderBalance(rows, ws); renderEffect(rows, ws, match); renderPatients(rows, ws, match);
+  renderBasics(rows); renderCohort(rows, ws, match); renderSelected(rows, ws, match); renderMethod(rows, ws, match); renderBalance(rows, ws); renderEffect(rows, ws, match); renderPatients(rows, ws, match);
 }
 function regenerate() {
   state.patients = simulate(state.scenario, state.seed);
   state.match = makeMatches(state.patients);
+  state.page = 0;
   render();
 }
 $("scenario").addEventListener("change", event => { state.scenario = event.target.value; state.seed += 1; regenerate(); });
 $("regenerate").addEventListener("click", () => { state.seed += 1; regenerate(); });
 document.querySelectorAll(".method-tab").forEach(tab => tab.addEventListener("click", () => { state.method = tab.dataset.method; render(); }));
-$("patient-search").addEventListener("input", () => renderPatients(state.patients, weights(state.patients, state.method, state.match), state.match));
+$("patient-search").addEventListener("input", () => { state.page = 0; renderPatients(state.patients, weights(state.patients, state.method, state.match), state.match); });
+$("page-prev").addEventListener("click", () => { state.page--; renderPatients(state.patients, weights(state.patients, state.method, state.match), state.match); });
+$("page-next").addEventListener("click", () => { state.page++; renderPatients(state.patients, weights(state.patients, state.method, state.match), state.match); });
+$("cohort-grid").addEventListener("click", event => { const dot = event.target.closest("[data-id]"); if (dot) { state.selectedId = dot.dataset.id; render(); } });
+$("patient-rows").addEventListener("click", event => { const row = event.target.closest("[data-id]"); if (row) { state.selectedId = row.dataset.id; render(); } });
 regenerate();
