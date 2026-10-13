@@ -239,7 +239,7 @@ function renderPatients(rows, ws, match) {
   const query = $("patient-search").value.trim().toLowerCase();
   const ordered = rows.map((p, i) => ({ ...p, weight: ws[i] })).sort((a, b) => a.ps - b.ps);
   const filtered = query ? ordered.filter(p => p.id.toLowerCase().includes(query)) : Array.from({ length: 16 }, (_, i) => ordered[Math.floor((i + 0.5) / 16 * ordered.length)]);
-  $("patient-rows").innerHTML = filtered.length ? filtered.slice(0, 16).map(p => `<tr><td><strong>${p.id}</strong></td><td><span class="treatment-tag ${p.treated ? "treated" : "control"}">${p.treated ? "药物 A" : "常规治疗"}</span></td><td>${Math.round(p.age)}</td><td>${fmt(p.severity, 1)}</td><td>${Math.round(p.egfr)}</td><td><strong>${fmt(p.ps, 3)}</strong></td><td>${method === "psm" ? (match.partner.has(p.id) ? `与 ${match.partner.get(p.id)} 配对` : "未配对") : fmt(p.weight, 2)}</td></tr>`).join("") : '<tr><td colspan="7">没有找到该编号的患者。</td></tr>';
+  $("patient-rows").innerHTML = filtered.length ? filtered.slice(0, 16).map(p => `<tr><td><strong>${p.id}</strong></td><td><span class="treatment-tag ${p.treated ? "treated" : "control"}">${p.treated ? "药物 A" : "常规治疗"}</span></td><td>${Math.round(p.age)}</td><td>${fmt(p.severity, 1)}</td><td>${Math.round(p.egfr)}</td><td><strong>${p.ps < 0.0005 ? "<0.001" : p.ps > 0.9995 ? ">0.999" : fmt(p.ps, 3)}</strong></td><td>${method === "psm" ? (match.partner.has(p.id) ? `与 ${match.partner.get(p.id)} 配对` : "未配对") : fmt(p.weight, 2)}</td></tr>`).join("") : '<tr><td colspan="7">没有找到该编号的患者。</td></tr>';
 }
 function render() {
   const rows = state.patients, match = state.match, ws = weights(rows, state.method, match);
