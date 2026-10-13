@@ -1,36 +1,25 @@
 "use strict";
 
-const N = 240;
+const N = 360;
 const FEATURES = [
   { key: "age", name: "年龄" },
-  { key: "severity", name: "病情严重度" },
-  { key: "egfr", name: "肾功能" }
+  { key: "female", name: "性别 F" },
+  { key: "sofa", name: "入科前 SOFA" },
+  { key: "map", name: "MAP" },
+  { key: "lactate", name: "乳酸" },
+  { key: "creatinine", name: "肌酐" }
 ];
-const SCENARIOS = {
-  mild: { label: "较弱", beta: [0.15, 0.25, -0.12] },
-  moderate: { label: "中等", beta: [0.45, 1.05, -0.65] },
-  strong: { label: "很强", beta: [1.0, 2.5, -1.6] }
-};
-const METHOD = {
-  psm: {
-    formula: "1:1 最近邻匹配 · 0.2 SD 卡钳"
-  },
-  iptw: {
-    formula: "药物 A：1 / PS · 对照：1 / (1 − PS)"
-  },
-  ow: {
-    formula: "药物 A：1 − PS · 对照：PS"
-  }
-};
+const SCENARIOS = { mild: 0.35, moderate: 0.75, strong: 1.25 };
+let state = { seed: 20261013, scenario: "moderate", rows: [], match: null, selectedId: null, page: 0 };
 
-let state = { seed: 20261013, scenario: "moderate", method: "psm", patients: [], match: null, selectedId: "P001", page: 0 };
 const $ = id => document.getElementById(id);
-const fmt = (v, digits = 2) => Number.isFinite(v) ? v.toFixed(digits) : "—";
-const fmtPS = v => v < 0.0005 ? "<0.001" : v > 0.9995 ? ">0.999" : fmt(v, 3);
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const logistic = x => 1 / (1 + Math.exp(-clamp(x, -30, 30)));
+const fmt = (x, n = 2) => Number.isFinite(x) ? x.toFixed(n) : "—";
+const signed = (x, n = 1) => Number.isFinite(x) ? `${x >= 0 ? "+" : ""}${fmt(x, n)}` : "—";
 const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
-const sd = a => Math.sqrt(a.reduce((s, x) => s + (x - mean(a)) ** 2, 0) / (a.length - 1));
+const sd = a => Math.sqrt(a.reduce((s, x) => s + (x - mean(a)) ** 2, 0) / Math.max(1, a.length - 1));
+const fmtPS = x => x < 0.0005 ? "<0.001" : x > 0.9995 ? ">0.999" : fmt(x, 3);
 
 function randomGenerator(seed) {
   let s = seed >>> 0;
@@ -47,20 +36,33 @@ function randomGenerator(seed) {
 
 function simulate(scenario, seed) {
   const rng = randomGenerator(seed);
-  const beta = SCENARIOS[scenario].beta;
+  const scale = SCENARIOS[scenario];
   const rows = [];
   for (let i = 0; i < N; i++) {
-    const ageZ = rng.normal();
-    const severityZ = 0.32 * ageZ + 0.95 * rng.normal();
-    const kidneyZ = -0.35 * ageZ - 0.25 * severityZ + 0.9 * rng.normal();
-    const age = clamp(65 + 12 * ageZ, 35, 90);
-    const severity = clamp(5 + 1.8 * severityZ, 0, 10);
-    const egfr = clamp(78 + 22 * kidneyZ, 20, 125);
-    const actual = logistic(-0.1 + beta[0] * ageZ + beta[1] * severityZ + beta[2] * kidneyZ);
-    const treated = rng.random() < actual ? 1 : 0;
-    // A constant +8 point effect is built into this wholly synthetic outcome.
-    const improvement = 50 - 0.12 * (age - 65) - 2.5 * severity + 0.065 * (egfr - 78) + 8 * treated + 7 * rng.normal();
-    rows.push({ id: `P${String(i + 1).padStart(3, "0")}`, age, severity, egfr, treated, improvement, actual });
+    const severityZ = rng.normal(), ageZ = rng.normal();
+    const female = rng.random() < 0.44 ? 1 : 0;
+    const age = Math.round(clamp(64 + 13 * ageZ, 18, 89));
+    const sofa = Math.round(clamp(6 + 2.9 * severityZ + 0.4 * ageZ + 0.8 * rng.normal(), 0, 20));
+    const map = Math.round(clamp(69 - 8.5 * severityZ + 6 * rng.normal(), 42, 105));
+    const lactate = clamp(2.2 + 1.05 * severityZ + 0.62 * rng.normal(), 0.6, 9.5);
+    const creatinine = clamp(1.2 + 0.42 * severityZ + 0.18 * ageZ + 0.38 * rng.normal(), 0.4, 5.8);
+    const sofaZ = (sofa - 6) / 3, mapZ = (map - 69) / 10;
+    const lactateZ = (lactate - 2.2) / 1.2, creatinineZ = (creatinine - 1.2) / 0.6;
+    const assignment = logistic(-0.35 + scale * (0.22 * ageZ + 0.78 * sofaZ - 0.62 * mapZ + 0.42 * lactateZ + 0.14 * creatinineZ + 0.08 * (female - 0.44)));
+    const treated = rng.random() < assignment ? 1 : 0;
+    const riskLogit = -1.55 + 0.28 * ageZ + 0.42 * sofaZ - 0.19 * mapZ + 0.23 * lactateZ + 0.12 * creatinineZ;
+    const death = rng.random() < logistic(riskLogit - 0.48 * treated) ? 1 : 0;
+    const month = String(1 + Math.floor(rng.random() * 12)).padStart(2, "0");
+    const day = String(1 + Math.floor(rng.random() * 28)).padStart(2, "0");
+    const hour = String(Math.floor(rng.random() * 24)).padStart(2, "0");
+    rows.push({
+      subject_id: 91000001 + i, hadm_id: 92000001 + i, stay_id: 93000001 + i,
+      gender: female ? "F" : "M", female, age, sofa, map, lactate, creatinine, treated, death,
+      admission_type: rng.random() < 0.78 ? "EMERGENCY" : "URGENT",
+      first_careunit: ["MICU", "SICU", "TSICU"][Math.floor(rng.random() * 3)],
+      intime: `2153-${month}-${day} ${hour}:00`,
+      actual_assignment_probability: assignment
+    });
   }
   fitPropensity(rows);
   return rows;
@@ -87,191 +89,223 @@ function solveLinear(matrix, rhs) {
 
 function fitPropensity(rows) {
   const centers = FEATURES.map(f => mean(rows.map(p => p[f.key])));
-  const spreads = FEATURES.map(f => sd(rows.map(p => p[f.key])));
-  const X = rows.map(p => [1, ...FEATURES.map((f, j) => (p[f.key] - centers[j]) / spreads[j])]);
-  let beta = [0, 0, 0, 0];
-  for (let step = 0; step < 40; step++) {
-    const gradient = Array(4).fill(0);
-    const hessian = Array.from({ length: 4 }, () => Array(4).fill(0));
-    X.forEach((x, i) => {
-      const p = logistic(x.reduce((s, xi, j) => s + xi * beta[j], 0));
-      const weight = Math.max(p * (1 - p), 1e-8);
-      for (let j = 0; j < 4; j++) {
-        gradient[j] += x[j] * (rows[i].treated - p);
-        for (let k = 0; k < 4; k++) hessian[j][k] += weight * x[j] * x[k];
+  const spreads = FEATURES.map(f => Math.max(sd(rows.map(p => p[f.key])), 1e-8));
+  const x = rows.map(p => [1, ...FEATURES.map((f, j) => (p[f.key] - centers[j]) / spreads[j])]);
+  const size = FEATURES.length + 1;
+  let beta = Array(size).fill(0);
+  for (let step = 0; step < 60; step++) {
+    const gradient = Array(size).fill(0);
+    const hessian = Array.from({ length: size }, () => Array(size).fill(0));
+    x.forEach((vector, i) => {
+      const probability = logistic(vector.reduce((s, v, j) => s + v * beta[j], 0));
+      const variance = Math.max(probability * (1 - probability), 1e-8);
+      for (let j = 0; j < size; j++) {
+        gradient[j] += vector[j] * (rows[i].treated - probability);
+        for (let k = 0; k < size; k++) hessian[j][k] += variance * vector[j] * vector[k];
       }
     });
-    for (let j = 0; j < 4; j++) hessian[j][j] += 1e-7;
+    for (let j = 1; j < size; j++) { gradient[j] -= 0.01 * beta[j]; hessian[j][j] += 0.01; }
     const delta = solveLinear(hessian, gradient);
     beta = beta.map((b, j) => b + delta[j]);
     if (Math.max(...delta.map(Math.abs)) < 1e-8) break;
   }
   rows.forEach((p, i) => {
-    p.ps = clamp(logistic(X[i].reduce((s, xi, j) => s + xi * beta[j], 0)), 1e-6, 1 - 1e-6);
+    p.ps = clamp(logistic(x[i].reduce((s, v, j) => s + v * beta[j], 0)), 1e-6, 1 - 1e-6);
     p.logit = Math.log(p.ps / (1 - p.ps));
   });
 }
 
 function makeMatches(rows) {
-  const treated = rows.filter(p => p.treated);
-  const controls = rows.filter(p => !p.treated);
+  const treated = rows.filter(p => p.treated), controls = rows.filter(p => !p.treated);
   const caliper = 0.2 * sd(rows.map(p => p.logit));
-  const candidate = [];
+  const candidates = [];
   for (const t of treated) for (const c of controls) {
     const distance = Math.abs(t.logit - c.logit);
-    if (distance <= caliper) candidate.push({ t, c, distance });
+    if (distance <= caliper) candidates.push({ t, c, distance });
   }
-  candidate.sort((a, b) => a.distance - b.distance || a.t.id.localeCompare(b.t.id) || a.c.id.localeCompare(b.c.id));
-  const usedT = new Set(), usedC = new Set(), pairs = [], partner = new Map();
-  for (const item of candidate) {
-    if (usedT.has(item.t.id) || usedC.has(item.c.id)) continue;
-    usedT.add(item.t.id); usedC.add(item.c.id);
-    pairs.push(item); partner.set(item.t.id, item.c.id); partner.set(item.c.id, item.t.id);
+  candidates.sort((a, b) => a.distance - b.distance || a.t.subject_id - b.t.subject_id || a.c.subject_id - b.c.subject_id);
+  const usedT = new Set(), usedC = new Set(), pairs = [], partner = new Map(), distance = new Map();
+  for (const item of candidates) {
+    if (usedT.has(item.t.subject_id) || usedC.has(item.c.subject_id)) continue;
+    usedT.add(item.t.subject_id); usedC.add(item.c.subject_id);
+    pairs.push(item);
+    partner.set(item.t.subject_id, item.c.subject_id);
+    partner.set(item.c.subject_id, item.t.subject_id);
+    distance.set(item.t.subject_id, item.distance);
+    distance.set(item.c.subject_id, item.distance);
   }
-  return { pairs, partner, caliper };
+  return { pairs, partner, distance, caliper };
 }
 
 function weights(rows, method, match) {
-  const matched = match.partner;
-  return rows.map(p => method === "psm" ? (matched.has(p.id) ? 1 : 0) : method === "iptw" ? (p.treated ? 1 / p.ps : 1 / (1 - p.ps)) : (p.treated ? 1 - p.ps : p.ps));
+  return rows.map(p => method === "psm" ? (match.partner.has(p.subject_id) ? 1 : 0)
+    : method === "iptw" ? (p.treated ? 1 / p.ps : 1 / (1 - p.ps))
+    : p.treated ? 1 - p.ps : p.ps);
 }
 function weightedMean(rows, values, ws, treated) {
-  let numerator = 0, denominator = 0;
-  rows.forEach((p, i) => { if (p.treated === treated) { numerator += values[i] * ws[i]; denominator += ws[i]; } });
-  return denominator ? numerator / denominator : NaN;
+  let total = 0, sumWeights = 0;
+  rows.forEach((p, i) => { if (p.treated === treated) { total += values[i] * ws[i]; sumWeights += ws[i]; } });
+  return sumWeights ? total / sumWeights : NaN;
 }
 function ess(rows, ws, treated) {
-  const w = ws.filter((_, i) => rows[i].treated === treated);
-  const sum = w.reduce((a, b) => a + b, 0);
-  const sumSquares = w.reduce((a, b) => a + b * b, 0);
+  let sum = 0, sumSquares = 0;
+  rows.forEach((p, i) => { if (p.treated === treated) { sum += ws[i]; sumSquares += ws[i] ** 2; } });
   return sumSquares ? sum * sum / sumSquares : 0;
 }
-function baselineScale(rows, key) {
-  const t = rows.filter(p => p.treated).map(p => p[key]);
-  const c = rows.filter(p => !p.treated).map(p => p[key]);
-  return Math.sqrt((sd(t) ** 2 + sd(c) ** 2) / 2);
-}
 function smd(rows, ws, key) {
-  const values = rows.map(p => p[key]);
-  return (weightedMean(rows, values, ws, 1) - weightedMean(rows, values, ws, 0)) / baselineScale(rows, key);
+  const t = rows.filter(p => p.treated).map(p => p[key]), c = rows.filter(p => !p.treated).map(p => p[key]);
+  const denominator = Math.sqrt((sd(t) ** 2 + sd(c) ** 2) / 2);
+  return denominator ? (weightedMean(rows, rows.map(p => p[key]), ws, 1) - weightedMean(rows, rows.map(p => p[key]), ws, 0)) / denominator : 0;
 }
 function effect(rows, ws, method, match) {
-  if (method === "psm") return match.pairs.length ? mean(match.pairs.map(({ t, c }) => t.improvement - c.improvement)) : NaN;
-  return weightedMean(rows, rows.map(p => p.improvement), ws, 1) - weightedMean(rows, rows.map(p => p.improvement), ws, 0);
+  if (method === "psm") return match.pairs.length ? 100 * mean(match.pairs.map(({ t, c }) => t.death - c.death)) : NaN;
+  return 100 * (weightedMean(rows, rows.map(p => p.death), ws, 1) - weightedMean(rows, rows.map(p => p.death), ws, 0));
 }
-function renderPSChart(rows) {
+function methodSummary(rows, method, match) {
+  const ws = weights(rows, method, match);
+  return {
+    ws,
+    maxSmd: Math.max(...FEATURES.map(f => Math.abs(smd(rows, ws, f.key)))),
+    effect: effect(rows, ws, method, match),
+    treatedRisk: 100 * weightedMean(rows, rows.map(p => p.death), ws, 1),
+    controlRisk: 100 * weightedMean(rows, rows.map(p => p.death), ws, 0),
+    essT: ess(rows, ws, 1), essC: ess(rows, ws, 0)
+  };
+}
+
+function renderHistogram(rows) {
   const buckets = Array.from({ length: 16 }, () => [0, 0]);
   rows.forEach(p => buckets[Math.min(15, Math.floor(p.ps * 16))][p.treated ? 0 : 1]++);
   const peak = Math.max(...buckets.flat(), 1);
   const bars = buckets.map((counts, i) => {
-    const x = 5 + i * (90 / 16), width = 90 / 16 - 1.4;
-    const treatedHeight = counts[0] / peak * 61, controlHeight = counts[1] / peak * 61;
-    return `<rect x="${x}" y="${77 - treatedHeight}" width="${width}" height="${treatedHeight}" rx="1" fill="#087f84"/><rect x="${x}" y="82" width="${width}" height="${controlHeight}" rx="1" fill="#df735f"/>`;
+    const x = 4 + i * 5.8, w = 4.3;
+    return `<rect x="${x}" y="${75 - counts[0] / peak * 64}" width="${w}" height="${counts[0] / peak * 64}" rx="1" fill="#0a827c"/><rect x="${x}" y="79" width="${w}" height="${counts[1] / peak * 64}" rx="1" fill="#dc8069"/>`;
   }).join("");
-  $("ps-chart").innerHTML = `<svg viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true"><line x1="50" y1="0" x2="50" y2="150" stroke="#dce9e6" stroke-dasharray="2 2"/><line x1="0" y1="79" x2="100" y2="79" stroke="#b7ccc8"/>${bars}</svg>`;
+  $("ps-chart").innerHTML = `<svg viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true"><line x1="50" y1="0" x2="50" y2="150" stroke="#d9e7e4" stroke-dasharray="2 2"/><line x1="0" y1="77" x2="100" y2="77" stroke="#b5cac5"/>${bars}</svg>`;
 }
-function renderBasics(rows) {
-  $("total-count").textContent = rows.length;
-  $("treated-count").textContent = rows.filter(p => p.treated).length;
-  $("control-count").textContent = rows.filter(p => !p.treated).length;
-  const baseline = FEATURES.map(f => Math.abs(smd(rows, rows.map(() => 1), f.key)));
-  $("baseline-smd").textContent = fmt(Math.max(...baseline));
-  renderPSChart(rows);
+
+function renderCohort(rows) {
+  const ordered = [...rows].sort((a, b) => a.ps - b.ps);
+  $("cohort-grid").innerHTML = ordered.map(p => `<button type="button" class="patient-dot ${p.treated ? "treated" : "control"}${p.subject_id === state.selectedId ? " selected" : ""}" data-id="${p.subject_id}" aria-label="${p.subject_id}，${p.treated ? "启动去甲肾上腺素" : "未启动"}，PS ${fmtPS(p.ps)}" aria-pressed="${p.subject_id === state.selectedId}"></button>`).join("");
+  $("cohort-count").textContent = `${rows.length} 条 ICU stay`;
 }
-function renderMethod(rows, ws, match) {
-  const method = state.method, meta = METHOD[method];
-  document.querySelectorAll(".method-tab").forEach(tab => {
-    const active = tab.dataset.method === method;
-    tab.classList.toggle("active", active);
-    tab.setAttribute("aria-selected", active ? "true" : "false");
-  });
-  $("method-content").setAttribute("aria-labelledby", `tab-${method}`);
-  $("method-formula").textContent = meta.formula;
-  if (method === "psm") {
-    $("stat-one-label").textContent = "成功配对";
-    $("stat-one").textContent = `${match.pairs.length} 对`;
-    $("stat-two-label").textContent = "未进入分析";
-    $("stat-two").textContent = `${rows.length - 2 * match.pairs.length} 人`;
-  } else {
-    $("stat-one-label").textContent = "有效样本量 ESS · A / 对照";
-    $("stat-one").textContent = `${Math.round(ess(rows, ws, 1))} / ${Math.round(ess(rows, ws, 0))}`;
-    $("stat-two-label").textContent = "最大个人权重";
-    $("stat-two").textContent = fmt(Math.max(...ws), method === "iptw" ? 1 : 2);
-  }
+
+function renderPatient(rows, match) {
+  const p = rows.find(row => row.subject_id === state.selectedId) || rows[0];
+  $("subject-id").textContent = p.subject_id;
+  $("hadm-id").textContent = p.hadm_id;
+  $("stay-id").textContent = p.stay_id;
+  $("admit-time").textContent = p.intime;
+  $("careunit").textContent = p.first_careunit;
+  $("admission-type").textContent = p.admission_type;
+  $("patient-treatment").textContent = p.treated ? "启动去甲肾上腺素" : "未启动";
+  $("patient-treatment").className = `treatment-tag ${p.treated ? "treated" : "control"}`;
+  $("p-age").textContent = `${p.age} 岁`;
+  $("p-gender").textContent = p.gender;
+  $("p-sofa").textContent = p.sofa;
+  $("p-map").textContent = `${p.map} mmHg`;
+  $("p-lactate").textContent = `${fmt(p.lactate, 1)} mmol/L`;
+  $("p-creatinine").textContent = `${fmt(p.creatinine, 2)} mg/dL`;
+  $("p-death").textContent = p.death ? "死亡" : "存活";
+  $("p-ps").textContent = fmtPS(p.ps);
+  $("ps-marker").style.left = `${p.ps * 100}%`;
 }
-function renderBalance(rows, ws) {
+
+function renderMethodCards(rows, match, summaries) {
+  const p = rows.find(row => row.subject_id === state.selectedId) || rows[0];
+  const index = rows.indexOf(p);
+  const partner = match.partner.get(p.subject_id);
+  const distance = match.distance.get(p.subject_id);
+  $("psm-value").textContent = partner ? `↔ ${partner}` : "未配对";
+  $("psm-calc").textContent = partner ? `|logit PS 差| = ${fmt(distance, 3)} ≤ 卡钳 ${fmt(match.caliper, 3)}` : `卡钳 ${fmt(match.caliper, 3)} · 无可用配对`;
+  $("psm-n").textContent = `${match.pairs.length} 对`;
+  $("psm-smd").textContent = fmt(summaries.psm.maxSmd);
+  $("psm-effect").textContent = `${signed(summaries.psm.effect)} pp`;
+  $("psm-risks").textContent = `治疗组 ${fmt(summaries.psm.treatedRisk, 1)}% · 对照组 ${fmt(summaries.psm.controlRisk, 1)}%`;
+
+  const iptw = summaries.iptw.ws[index];
+  const denominator = p.treated ? p.ps : 1 - p.ps;
+  $("iptw-value").textContent = fmt(iptw, 3);
+  $("iptw-calc").textContent = `${p.treated ? "1 / PS" : "1 / (1 − PS)"} = 1 / ${fmt(denominator, 4)} = ${fmt(iptw, 3)}`;
+  $("iptw-n").textContent = `${Math.round(summaries.iptw.essT)} / ${Math.round(summaries.iptw.essC)}`;
+  $("iptw-smd").textContent = fmt(summaries.iptw.maxSmd);
+  $("iptw-effect").textContent = `${signed(summaries.iptw.effect)} pp`;
+  $("iptw-risks").textContent = `治疗组 ${fmt(summaries.iptw.treatedRisk, 1)}% · 对照组 ${fmt(summaries.iptw.controlRisk, 1)}%`;
+
+  const ow = summaries.ow.ws[index];
+  $("ow-value").textContent = fmt(ow, 3);
+  $("ow-calc").textContent = p.treated ? `1 − PS = 1 − ${fmt(p.ps, 4)} = ${fmt(ow, 3)}` : `PS = ${fmt(p.ps, 4)} = ${fmt(ow, 3)}`;
+  $("ow-n").textContent = `${Math.round(summaries.ow.essT)} / ${Math.round(summaries.ow.essC)}`;
+  $("ow-smd").textContent = fmt(summaries.ow.maxSmd);
+  $("ow-effect").textContent = `${signed(summaries.ow.effect)} pp`;
+  $("ow-risks").textContent = `治疗组 ${fmt(summaries.ow.treatedRisk, 1)}% · 对照组 ${fmt(summaries.ow.controlRisk, 1)}%`;
+}
+
+function renderBalance(rows, summaries) {
   const before = rows.map(() => 1);
-  const values = FEATURES.map(f => ({ name: f.name, before: Math.abs(smd(rows, before, f.key)), after: Math.abs(smd(rows, ws, f.key)) }));
-  const max = Math.max(0.3, ...values.flatMap(v => [v.before, v.after]));
-  $("balance-bars").innerHTML = values.map(v => `<div class="balance-row"><label>${v.name}</label><div class="bar-track" style="--threshold-pos:${0.1 / max * 100}%" title="处理前 ${fmt(v.before)}；处理后 ${fmt(v.after)}"><span class="bar before" style="width:${v.before / max * 100}%"></span><span class="bar after" style="width:${v.after / max * 100}%"></span></div><output>${fmt(v.after)}</output></div>`).join("");
-  const beforeMax = Math.max(...values.map(v => v.before)), afterMax = Math.max(...values.map(v => v.after));
-  const callout = $("balance-comment");
-  callout.classList.toggle("warn", afterMax >= 0.1);
-  callout.textContent = `最大 |SMD|  ${fmt(beforeMax)} → ${fmt(afterMax)}  ·  ${afterMax < 0.1 ? "三项均 < 0.1" : "仍有 ≥ 0.1"}`;
-  $("legend-after").textContent = `${state.method.toUpperCase()} 后`;
-}
-function renderEffect(rows, ws, match) {
-  const before = rows.map(() => 1);
-  $("naive-effect").textContent = `${effect(rows, before, "iptw", match) >= 0 ? "+" : ""}${fmt(effect(rows, before, "iptw", match), 1)} 分`;
-  const adjusted = effect(rows, ws, state.method, match);
-  $("adjusted-effect").textContent = Number.isFinite(adjusted) ? `${adjusted >= 0 ? "+" : ""}${fmt(adjusted, 1)} 分` : "无法估计";
-  $("adjusted-label").textContent = `${state.method.toUpperCase()} 后`;
-}
-function renderCohort(rows, ws, match) {
-  const maxWeight = Math.max(...ws, 1);
-  $("cohort-count").textContent = `${rows.length} 人`;
-  $("legend-dim").innerHTML = `<i class="dot faded"></i>${state.method === "psm" ? "未配对" : "较低权重"}`;
-  $("cohort-grid").innerHTML = rows.map((p, i) => {
-    const selected = p.id === state.selectedId;
-    const opacity = state.method === "psm" ? (ws[i] ? 1 : 0.22) : clamp(ws[i] / maxWeight, 0.22, 1);
-    const label = `${p.id}，${p.treated ? "药物 A" : "常规治疗"}，PS ${fmtPS(p.ps)}`;
-    return `<button type="button" class="patient-dot ${p.treated ? "treated" : "control"}${selected ? " selected" : ""}" data-id="${p.id}" style="opacity:${selected ? 1 : opacity}" aria-label="${label}" aria-pressed="${selected}"></button>`;
+  $("balance-rows").innerHTML = FEATURES.map(f => {
+    const values = [
+      Math.abs(smd(rows, before, f.key)),
+      Math.abs(smd(rows, summaries.psm.ws, f.key)),
+      Math.abs(smd(rows, summaries.iptw.ws, f.key)),
+      Math.abs(smd(rows, summaries.ow.ws, f.key))
+    ];
+    return `<tr><th scope="row">${f.name}</th>${values.map((v, i) => `<td><span class="smd-pill ${i && v < 0.1 ? "good" : i && v >= 0.1 ? "warn" : ""}">${fmt(v)}</span></td>`).join("")}</tr>`;
   }).join("");
 }
-function renderSelected(rows, ws, match) {
-  const index = rows.findIndex(p => p.id === state.selectedId);
-  const p = rows[index < 0 ? 0 : index];
-  const weight = ws[index < 0 ? 0 : index];
-  $("selected-id").textContent = p.id;
-  $("selected-group").textContent = p.treated ? "药物 A" : "常规治疗";
-  $("selected-group").className = `treatment-tag ${p.treated ? "treated" : "control"}`;
-  $("selected-age").textContent = `${Math.round(p.age)} 岁`;
-  $("selected-severity").textContent = fmt(p.severity, 1);
-  $("selected-egfr").textContent = fmt(p.egfr, 0);
-  $("selected-outcome").textContent = `${fmt(p.improvement, 1)} 分`;
-  $("selected-ps").textContent = fmtPS(p.ps);
-  $("selected-method-label").textContent = state.method === "psm" ? "配对结果" : `${state.method.toUpperCase()} 权重`;
-  $("selected-method-value").textContent = state.method === "psm" ? (match.partner.has(p.id) ? `↔ ${match.partner.get(p.id)}` : "未配对") : fmt(weight, 3);
-}
-function renderPatients(rows, ws, match) {
-  $("method-column").textContent = state.method === "psm" ? "配对结果" : `${state.method.toUpperCase()} 权重`;
-  const query = $("patient-search").value.trim().toLowerCase();
-  const filtered = rows.map((p, i) => ({ ...p, weight: ws[i] })).filter(p => p.id.toLowerCase().includes(query));
-  const perPage = 20;
-  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
+
+function renderTable(rows, match, summaries) {
+  const query = $("patient-search").value.trim();
+  const filtered = rows.filter(p => String(p.subject_id).includes(query) || String(p.hadm_id).includes(query) || String(p.stay_id).includes(query));
+  const perPage = 20, pages = Math.max(1, Math.ceil(filtered.length / perPage));
   state.page = clamp(state.page, 0, pages - 1);
   const visible = filtered.slice(state.page * perPage, (state.page + 1) * perPage);
-  $("patient-rows").innerHTML = visible.length ? visible.map(p => `<tr data-id="${p.id}" class="${p.id === state.selectedId ? "selected" : ""}"><td><strong>${p.id}</strong></td><td><span class="treatment-tag ${p.treated ? "treated" : "control"}">${p.treated ? "药物 A" : "常规治疗"}</span></td><td>${Math.round(p.age)}</td><td>${fmt(p.severity, 1)}</td><td>${Math.round(p.egfr)}</td><td><strong>${fmtPS(p.ps)}</strong></td><td>${fmt(p.improvement, 1)}</td><td>${state.method === "psm" ? (match.partner.has(p.id) ? `↔ ${match.partner.get(p.id)}` : "未配对") : fmt(p.weight, 3)}</td></tr>`).join("") : '<tr><td colspan="8">没有找到患者</td></tr>';
-  $("page-status").textContent = `${filtered.length ? state.page * perPage + 1 : 0}–${Math.min((state.page + 1) * perPage, filtered.length)} / ${filtered.length} 人`;
+  $("patient-rows").innerHTML = visible.length ? visible.map(p => {
+    const index = rows.indexOf(p);
+    return `<tr data-id="${p.subject_id}" class="${p.subject_id === state.selectedId ? "selected" : ""}"><td><strong>${p.subject_id}</strong></td><td>${p.age}</td><td>${p.gender}</td><td>${p.sofa}</td><td>${p.map}</td><td>${fmt(p.lactate, 1)}</td><td>${fmt(p.creatinine, 2)}</td><td><span class="treatment-tag ${p.treated ? "treated" : "control"}">${p.treated ? "启动" : "未启动"}</span></td><td>${p.death ? "死亡" : "存活"}</td><td>${fmtPS(p.ps)}</td><td>${match.partner.get(p.subject_id) || "—"}</td><td>${fmt(summaries.iptw.ws[index], 2)}</td><td>${fmt(summaries.ow.ws[index], 2)}</td></tr>`;
+  }).join("") : `<tr><td colspan="13">没有找到记录</td></tr>`;
+  $("page-status").textContent = `${filtered.length ? state.page * perPage + 1 : 0}–${Math.min((state.page + 1) * perPage, filtered.length)} / ${filtered.length}`;
   $("page-prev").disabled = state.page === 0;
   $("page-next").disabled = state.page >= pages - 1;
 }
+
 function render() {
-  const rows = state.patients, match = state.match, ws = weights(rows, state.method, match);
-  renderBasics(rows); renderCohort(rows, ws, match); renderSelected(rows, ws, match); renderMethod(rows, ws, match); renderBalance(rows, ws); renderEffect(rows, ws, match); renderPatients(rows, ws, match);
+  const rows = state.rows, match = state.match;
+  const summaries = {
+    psm: methodSummary(rows, "psm", match),
+    iptw: methodSummary(rows, "iptw", match),
+    ow: methodSummary(rows, "ow", match)
+  };
+  $("total-count").textContent = rows.length;
+  $("treated-count").textContent = rows.filter(p => p.treated).length;
+  $("control-count").textContent = rows.filter(p => !p.treated).length;
+  $("raw-smd").textContent = fmt(Math.max(...FEATURES.map(f => Math.abs(smd(rows, rows.map(() => 1), f.key)))));
+  renderCohort(rows);
+  renderPatient(rows, match);
+  renderMethodCards(rows, match, summaries);
+  renderHistogram(rows);
+  renderBalance(rows, summaries);
+  renderTable(rows, match, summaries);
 }
 function regenerate() {
-  state.patients = simulate(state.scenario, state.seed);
-  state.match = makeMatches(state.patients);
+  state.rows = simulate(state.scenario, state.seed);
+  state.match = makeMatches(state.rows);
+  state.selectedId = state.match.pairs[0]?.t.subject_id || state.rows[0].subject_id;
   state.page = 0;
+  $("patient-search").value = "";
   render();
 }
 $("scenario").addEventListener("change", event => { state.scenario = event.target.value; state.seed += 1; regenerate(); });
 $("regenerate").addEventListener("click", () => { state.seed += 1; regenerate(); });
-document.querySelectorAll(".method-tab").forEach(tab => tab.addEventListener("click", () => { state.method = tab.dataset.method; render(); }));
-$("patient-search").addEventListener("input", () => { state.page = 0; renderPatients(state.patients, weights(state.patients, state.method, state.match), state.match); });
-$("page-prev").addEventListener("click", () => { state.page--; renderPatients(state.patients, weights(state.patients, state.method, state.match), state.match); });
-$("page-next").addEventListener("click", () => { state.page++; renderPatients(state.patients, weights(state.patients, state.method, state.match), state.match); });
-$("cohort-grid").addEventListener("click", event => { const dot = event.target.closest("[data-id]"); if (dot) { state.selectedId = dot.dataset.id; render(); } });
-$("patient-rows").addEventListener("click", event => { const row = event.target.closest("[data-id]"); if (row) { state.selectedId = row.dataset.id; render(); } });
+$("cohort-grid").addEventListener("click", event => {
+  const dot = event.target.closest("[data-id]");
+  if (dot) { state.selectedId = Number(dot.dataset.id); render(); }
+});
+$("patient-rows").addEventListener("click", event => {
+  const row = event.target.closest("[data-id]");
+  if (row) { state.selectedId = Number(row.dataset.id); render(); }
+});
+$("patient-search").addEventListener("input", () => { state.page = 0; render(); });
+$("page-prev").addEventListener("click", () => { state.page -= 1; render(); });
+$("page-next").addEventListener("click", () => { state.page += 1; render(); });
 regenerate();
