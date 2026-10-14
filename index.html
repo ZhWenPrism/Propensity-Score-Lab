@@ -3,10 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="MIMIC-IV 表结构风格的 ICU 合成数据，交互计算 PSM、IPTW 和 OW。">
+  <meta name="description" content="MIMIC-IV 表结构风格的 ICU 合成数据：选择 PS 模型变量，比较 PSM、IPTW、OW 前后的 PS 分布、个体权重、极端个体影响与 28 天生存。">
   <title>ICU 倾向评分实验室 · 合成数据</title>
-  <link rel="stylesheet" href="styles.css?v=mimic3">
-  <script src="app.js?v=mimic3" defer></script>
+  <link rel="stylesheet" href="styles.css?v=lab4">
+  <script src="stats.js?v=lab4" defer></script>
+  <script src="sim.js?v=lab4" defer></script>
+  <script src="charts.js?v=lab4" defer></script>
+  <script src="app.js?v=lab4" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">跳到应用</a>
@@ -16,40 +19,109 @@
   </header>
   <main id="main">
     <section class="workspace-head">
-      <div><p class="overline">SYNTHETIC ICU COHORT</p><h1>成人 ICU 入科队列</h1><p class="subtitle">治疗：入科时启动去甲肾上腺素　·　结局：28 天死亡</p></div>
+      <div><p class="overline">SYNTHETIC ICU COHORT</p><h1>成人 ICU 入科队列</h1><p class="subtitle">治疗：入科时启动去甲肾上腺素　·　结局：28 天生存（入科为时间零点）</p></div>
       <div class="controls"><label for="scenario">治疗选择偏向</label><select id="scenario"><option value="mild">较弱</option><option value="moderate" selected>中等</option><option value="strong">很强</option></select><button id="regenerate" type="button">↻ 重新生成</button></div>
     </section>
 
     <section class="metric-strip" aria-label="队列概况">
-      <div><span>ICU stay</span><strong id="total-count">—</strong></div>
-      <div><span>启动治疗</span><strong id="treated-count">—</strong></div>
+      <div><span>纳入 ICU stay</span><strong id="total-count">—</strong><small id="excluded-note"></small></div>
+      <div><span>启动去甲</span><strong id="treated-count">—</strong></div>
       <div><span>未启动</span><strong id="control-count">—</strong></div>
       <div><span>原始最大 |SMD|</span><strong id="raw-smd">—</strong></div>
+      <div><span>PS 模型 c-statistic</span><strong id="cstat">—</strong></div>
     </section>
-    <div class="source-strip" aria-label="合成记录表"><span>hosp.patients</span><span>hosp.admissions</span><span>icu.icustays</span><span>icu.chartevents</span><span>hosp.labevents</span><span>icu.inputevents</span></div>
+    <nav class="step-nav" aria-label="分析步骤">
+      <a href="#step1"><b>1</b>选指标</a><a href="#step2"><b>2</b>PS 分布</a><a href="#step3"><b>3</b>个人贡献</a><a href="#step4"><b>4</b>极端个体</a><a href="#step5"><b>5</b>生存结局</a><a href="#records">记录表</a>
+    </nav>
 
-    <section class="cohort-layout" aria-label="队列和患者记录">
-      <article class="panel cohort-panel"><div class="panel-heading"><div><p class="overline">01 / COHORT</p><h2>模拟 ICU 队列 <small id="cohort-count">—</small></h2></div><div class="legend"><span><i class="dot teal"></i>启动</span><span><i class="dot coral"></i>未启动</span></div></div><div id="cohort-grid" class="cohort-grid" role="group" aria-label="选择模拟患者"></div><div class="axis-hint"><span>PS 低</span><span>PS 高</span></div></article>
-      <article class="panel patient-panel"><div class="panel-heading"><div><p class="overline">02 / RECORD</p><h2>subject_id <span id="subject-id">—</span></h2></div><span id="patient-treatment" class="treatment-tag">—</span></div>
-        <div class="record-ids"><div><span>hadm_id</span><strong id="hadm-id">—</strong></div><div><span>stay_id</span><strong id="stay-id">—</strong></div><div><span>icustays.intime</span><strong id="admit-time">—</strong></div><div><span>first_careunit</span><strong id="careunit">—</strong></div><div><span>admission_type</span><strong id="admission-type">—</strong></div></div>
-        <div class="vitals-grid"><div><small>patients.anchor_age</small><span>年龄</span><strong id="p-age">—</strong></div><div><small>patients.gender</small><span>性别</span><strong id="p-gender">—</strong></div><div><small>derived · 治疗前</small><span>SOFA</span><strong id="p-sofa">—</strong></div><div><small>chartevents · 治疗前</small><span>MAP</span><strong id="p-map">—</strong></div><div><small>labevents · 治疗前</small><span>乳酸</span><strong id="p-lactate">—</strong></div><div><small>labevents · 治疗前</small><span>肌酐</span><strong id="p-creatinine">—</strong></div></div>
-        <div class="patient-bottom"><div><span>倾向评分 PS</span><strong id="p-ps">—</strong><div class="ps-track"><i id="ps-marker"></i></div></div><div><span>28 天结局 · 派生</span><strong id="p-death">—</strong></div></div>
+    <section id="step1" class="step" aria-labelledby="step1-title">
+      <div class="section-heading"><p class="overline">STEP 1 / PS MODEL</p><h2 id="step1-title">选择进入 PS 模型的指标</h2></div>
+      <div class="two-col">
+        <article class="panel">
+          <div class="panel-heading"><div><h3 class="panel-title">候选指标</h3><p class="panel-sub">OR：连续变量为每增加 1 SD，二分类变量为有 vs 无</p></div></div>
+          <div class="preset-row" role="group" aria-label="快速选择">
+            <button type="button" data-preset="default">默认：6 个混杂因素</button>
+            <button type="button" data-preset="all">全部 8 个</button>
+            <button type="button" data-preset="nosofa">去掉 SOFA</button>
+            <button type="button" data-preset="instrument">加入工具变量</button>
+          </div>
+          <div id="covariate-list" class="cov-list"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-heading"><div><h3 class="panel-title">每个人的 PS：默认模型 vs 当前模型</h3><p class="panel-sub">每个点为一位患者</p></div><div class="legend"><span><i class="dot teal"></i>启动去甲</span><span><i class="dot ring coral"></i>未启动</span></div></div>
+          <div id="ps-scatter" class="chart-box" role="img" aria-label="默认模型与当前模型 PS 散点图"></div>
+          <div id="ps-shift" class="chart-note">—</div>
+        </article>
+      </div>
+    </section>
+
+    <section id="step2" class="step" aria-labelledby="step2-title">
+      <div class="section-heading"><p class="overline">STEP 2 / PS DISTRIBUTION</p><h2 id="step2-title">PS 分布：调整前 → PSM / IPTW / OW 之后</h2></div>
+      <div class="legend legend-row"><span><i class="dot teal"></i>启动去甲（上）</span><span><i class="dot coral"></i>未启动（下）</span><span><i class="line-key"></i>调整前分布</span></div>
+      <div id="hist-grid" class="quad-grid"></div>
+      <article class="panel love-panel">
+        <div class="panel-heading"><div><h3 class="panel-title">基线平衡 · Love plot</h3><p class="panel-sub">参考线 |SMD| = 0.1</p></div><div class="legend" id="love-legend"></div></div>
+        <div id="love-plot" class="chart-box" role="img" aria-label="各指标在四种状态下的 |SMD|"></div>
+        <details class="table-details"><summary>查看数值表</summary><div class="table-wrap"><table class="balance-table"><thead><tr><th>治疗前指标</th><th>PS 模型</th><th>原始</th><th>PSM</th><th>IPTW</th><th>OW</th></tr></thead><tbody id="balance-rows"></tbody></table></div></details>
       </article>
     </section>
 
-    <section class="method-section" aria-labelledby="methods-title"><div class="section-heading"><p class="overline">03 / THREE CALCULATORS</p><h2 id="methods-title">同一批患者 · 三种计算</h2></div><div class="method-grid">
-      <article class="panel method-card"><div class="method-heading"><span class="method-num">01</span><h3>PSM</h3><small>1:1 匹配</small></div><div class="calculation"><span>所选患者的配对</span><strong id="psm-value">—</strong><code id="psm-calc">—</code></div><div class="method-metrics"><div><span>成功配对</span><strong id="psm-n">—</strong></div><div><span>最大 |SMD|</span><strong id="psm-smd">—</strong></div><div><span>死亡率差</span><strong id="psm-effect">—</strong></div></div><div class="method-risk" id="psm-risks">—</div></article>
-      <article class="panel method-card"><div class="method-heading"><span class="method-num">02</span><h3>IPTW</h3><small>逆概率加权</small></div><div class="calculation"><span>所选患者的权重</span><strong id="iptw-value">—</strong><code id="iptw-calc">—</code></div><div class="method-metrics"><div><span>ESS · 治疗 / 对照</span><strong id="iptw-n">—</strong></div><div><span>最大 |SMD|</span><strong id="iptw-smd">—</strong></div><div><span>死亡率差</span><strong id="iptw-effect">—</strong></div></div><div class="method-risk" id="iptw-risks">—</div></article>
-      <article class="panel method-card"><div class="method-heading"><span class="method-num">03</span><h3>OW</h3><small>重叠加权</small></div><div class="calculation"><span>所选患者的权重</span><strong id="ow-value">—</strong><code id="ow-calc">—</code></div><div class="method-metrics"><div><span>ESS · 治疗 / 对照</span><strong id="ow-n">—</strong></div><div><span>最大 |SMD|</span><strong id="ow-smd">—</strong></div><div><span>死亡率差</span><strong id="ow-effect">—</strong></div></div><div class="method-risk" id="ow-risks">—</div></article>
-    </div></section>
-
-    <section class="results-layout" aria-label="PS 分布和基线平衡">
-      <article class="panel distribution-panel"><div class="panel-heading"><div><p class="overline">04 / PROPENSITY SCORE</p><h2>PS 分布</h2></div></div><div id="ps-chart" class="ps-chart" role="img" aria-label="两组患者倾向评分分布"></div><div class="chart-axis"><span>0</span><span>0.5</span><span>1</span></div><div class="legend"><span><i class="dot teal"></i>启动</span><span><i class="dot coral"></i>未启动</span></div></article>
-      <article class="panel balance-panel"><div class="panel-heading"><div><p class="overline">05 / BASELINE BALANCE</p><h2>基线 |SMD|</h2></div></div><div class="table-wrap"><table class="balance-table"><thead><tr><th>治疗前指标</th><th>原始</th><th>PSM</th><th>IPTW</th><th>OW</th></tr></thead><tbody id="balance-rows"></tbody></table></div></article>
+    <section id="step3" class="step" aria-labelledby="step3-title">
+      <div class="section-heading"><p class="overline">STEP 3 / CONTRIBUTION</p><h2 id="step3-title">每个人在三种方法中的贡献</h2></div>
+      <div class="seg" role="group" aria-label="显示方法" id="view-switch">
+        <button type="button" data-view="raw">原始</button><button type="button" data-view="psm">PSM</button><button type="button" data-view="iptw">IPTW</button><button type="button" data-view="ow">OW</button>
+      </div>
+      <div class="cohort-layout">
+        <article class="panel cohort-panel">
+          <div class="panel-heading"><div><h3 class="panel-title">模拟 ICU 队列 <small id="cohort-count">—</small></h3><p class="panel-sub" id="swarm-caption">—</p></div><div class="legend"><span><i class="dot teal"></i>启动（上）</span><span><i class="dot coral"></i>未启动（下）</span><span><i class="dot ring gray"></i>已排除</span></div></div>
+          <div id="swarm" class="chart-box swarm-box" role="img" aria-label="按 PS 排列的患者，圆的大小代表权重"></div>
+        </article>
+        <article class="panel patient-panel">
+          <div class="panel-heading"><div><p class="overline">RECORD</p><h3 class="panel-title">subject_id <span id="subject-id">—</span></h3></div><span id="patient-treatment" class="treatment-tag">—</span></div>
+          <div class="record-ids"><div><span>hadm_id</span><strong id="hadm-id">—</strong></div><div><span>stay_id</span><strong id="stay-id">—</strong></div><div><span>icustays.intime</span><strong id="admit-time">—</strong></div><div><span>first_careunit</span><strong id="careunit">—</strong></div></div>
+          <div class="vitals-grid" id="vitals"></div>
+          <div class="patient-bottom"><div><span>倾向评分 PS（当前模型）</span><strong id="p-ps">—</strong><small id="p-ps-ref">—</small><div class="ps-track"><i id="ps-marker"></i></div></div><div><span>28 天结局</span><strong id="p-death">—</strong><small id="p-time">—</small></div></div>
+          <button id="exclude-toggle" type="button" class="ghost-button">排除此人，整条流程重算</button>
+        </article>
+      </div>
+      <div class="method-grid">
+        <article class="panel method-card"><div class="method-heading"><span class="method-num">PSM</span><h3>1:1 匹配</h3><small>卡钳 0.2 SD logit(PS)</small></div><div class="calculation"><span>此人的配对</span><strong id="psm-value">—</strong><code id="psm-calc">—</code></div><div class="method-metrics"><div><span>成功配对</span><strong id="psm-n">—</strong></div><div><span>去甲组配上</span><strong id="psm-share">—</strong></div><div><span>最大 |SMD|</span><strong id="psm-smd">—</strong></div></div></article>
+        <article class="panel method-card"><div class="method-heading"><span class="method-num">IPTW</span><h3>逆概率加权</h3><small>估计 ATE</small></div><div class="calculation"><span>此人的权重</span><strong id="iptw-value">—</strong><code id="iptw-calc">—</code><code id="iptw-share">—</code></div><div class="method-metrics"><div><span>ESS 去甲 / 对照</span><strong id="iptw-n">—</strong></div><div><span>最大权重</span><strong id="iptw-max">—</strong></div><div><span>最大 |SMD|</span><strong id="iptw-smd">—</strong></div></div></article>
+        <article class="panel method-card"><div class="method-heading"><span class="method-num">OW</span><h3>重叠加权</h3><small>估计 ATO</small></div><div class="calculation"><span>此人的权重</span><strong id="ow-value">—</strong><code id="ow-calc">—</code><code id="ow-share">—</code></div><div class="method-metrics"><div><span>ESS 去甲 / 对照</span><strong id="ow-n">—</strong></div><div><span>最大权重</span><strong id="ow-max">—</strong></div><div><span>最大 |SMD|</span><strong id="ow-smd">—</strong></div></div></article>
+      </div>
     </section>
 
-    <section class="panel table-panel" aria-labelledby="table-title"><div class="panel-heading"><div><p class="overline">06 / SYNTHETIC RECORDS</p><h2 id="table-title">全部模拟记录</h2></div><label class="table-search"><span>查找 ID</span><input id="patient-search" type="search" placeholder="subject / hadm / stay ID"></label></div><div class="table-wrap"><table class="patient-table"><thead><tr><th>subject_id</th><th>年龄</th><th>性别</th><th>SOFA</th><th>MAP</th><th>乳酸</th><th>肌酐</th><th>去甲肾上腺素</th><th>28 天</th><th>PS</th><th>PSM 配对</th><th>IPTW 权重</th><th>OW 权重</th></tr></thead><tbody id="patient-rows"></tbody></table></div><div class="pagination"><span id="page-status">—</span><div><button id="page-prev" type="button">上一页</button><button id="page-next" type="button">下一页</button></div></div></section>
+    <section id="step4" class="step" aria-labelledby="step4-title">
+      <div class="section-heading"><p class="overline">STEP 4 / INFLUENCE</p><h2 id="step4-title">极端个体：让他进来 vs 不让他进来</h2></div>
+      <article class="panel">
+        <div class="table-wrap"><table class="data-table influence-table"><thead><tr><th>排除</th><th>subject_id</th><th>组别</th><th>PS</th><th>IPTW 权重</th><th>占本组权重</th><th>OW 权重</th><th>28 天结局</th><th>只排除此人：IPTW HR</th><th>只排除此人：OW HR</th></tr></thead><tbody id="influence-rows"></tbody></table></div>
+        <div class="excluded-bar"><span id="excluded-list">当前未排除任何人</span><button id="restore-all" type="button" class="ghost-button small">全部恢复</button></div>
+      </article>
+      <article class="panel">
+        <div class="panel-heading"><div><h3 class="panel-title">全部纳入 vs 排除后</h3><p class="panel-sub" id="compare-sub">—</p></div></div>
+        <div class="table-wrap"><table class="data-table compare-table"><thead><tr><th>方法</th><th>HR (95% CI) · 全部纳入</th><th>HR (95% CI) · 排除后</th><th>死亡率差 · 全部 → 排除后</th><th>ESS 对照组 · 全部 → 排除后</th><th>最大权重 · 全部 → 排除后</th></tr></thead><tbody id="compare-rows"></tbody></table></div>
+      </article>
+    </section>
+
+    <section id="step5" class="step" aria-labelledby="step5-title">
+      <div class="section-heading"><p class="overline">STEP 5 / SURVIVAL</p><h2 id="step5-title">去甲 vs 对照：28 天生存有没有差异</h2></div>
+      <div class="legend legend-row"><span><i class="line-key teal"></i>启动去甲</span><span><i class="line-key coral"></i>未启动</span></div>
+      <div id="km-grid" class="quad-grid"></div>
+      <div class="two-col results-cols">
+        <article class="panel">
+          <div class="panel-heading"><div><h3 class="panel-title">HR 对比</h3><p class="panel-sub">■ 估计值 (95% CI)　◇ 真值</p></div></div>
+          <div id="forest" class="chart-box" role="img" aria-label="四种分析的 HR 与真值"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-heading"><div><h3 class="panel-title">结果表</h3></div></div>
+          <div class="table-wrap"><table class="data-table result-table"><thead><tr><th>方法 · 估计目标</th><th>28 天死亡 去甲 / 对照</th><th>死亡率差 (95% CI)</th><th>P</th><th>HR (95% CI)</th><th>P</th><th>真值 死亡率差 / HR</th></tr></thead><tbody id="result-rows"></tbody></table></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="records" class="panel table-panel" aria-labelledby="table-title"><div class="panel-heading"><div><p class="overline">RECORDS</p><h2 id="table-title">全部模拟记录</h2></div><label class="table-search"><span>查找 ID</span><input id="patient-search" type="search" placeholder="subject / hadm / stay ID"></label></div><div class="table-wrap"><table class="patient-table"><thead><tr><th>subject_id</th><th>年龄</th><th>性别</th><th>SOFA</th><th>MAP</th><th>乳酸</th><th>肌酐</th><th>偏好</th><th>肿瘤</th><th>去甲</th><th>时间(天)</th><th>28 天</th><th>PS</th><th>PSM 配对</th><th>IPTW</th><th>OW</th><th>状态</th></tr></thead><tbody id="patient-rows"></tbody></table></div><div class="pagination"><span id="page-status">—</span><div><button id="page-prev" type="button">上一页</button><button id="page-next" type="button">下一页</button></div></div></section>
   </main>
+  <div id="tooltip" class="tooltip" role="status" hidden></div>
   <footer>完全合成数据 · 不含 MIMIC 原始患者记录 · <a href="https://mimic.mit.edu/docs/iv/" target="_blank" rel="noopener">MIMIC-IV 字段参考</a></footer>
 </body>
 </html>
