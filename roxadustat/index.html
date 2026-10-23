@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="罗沙司他获益-风险评估课堂工作台：每组扮演一家监管机构，只看它当时的原文证据包，做出结论后再对照四家机构的真实解读。">
+  <title>罗沙司他审评工作台</title>
+  <link rel="stylesheet" href="styles.css?v=16">
+  <script src="data.js?v=16" defer></script>
+  <script src="briefs.js?v=16" defer></script>
+  <script src="cards.js?v=16" defer></script>
+  <script src="sim.js?v=16" defer></script>
+  <script src="app.js?v=16" defer></script>
+  <script src="draw.js?v=16" defer></script>
+</head>
+<body>
+  <div class="draw-stage" id="draw-stage" role="dialog" aria-modal="true" aria-labelledby="draw-title" hidden>
+    <div class="draw-inner">
+      <p class="draw-eyebrow">罗沙司他 · 获益-风险评估</p>
+      <h1 id="draw-title">抽签：你们组扮演哪家监管机构？</h1>
+      <p class="draw-lead">四家监管机构审的是同一个药，却做出了不同的决定。抽到哪一家，你们就只能看到它当时手上的证据。</p>
+      <div class="draw-table" id="draw-table" aria-hidden="true"></div>
+      <div class="draw-result" id="draw-result" aria-live="polite"></div>
+      <form class="draw-form" id="draw-form">
+        <label for="draw-group">组号<small>可不填</small></label>
+        <input id="draw-group" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="如 3">
+        <button class="draw-btn" id="draw-start" type="submit">开始抽签</button>
+      </form>
+    </div>
+  </div>
+  <header class="top">
+    <div class="wrap">
+      <div class="brand">罗沙司他审评工作台<small>获益-风险评估 · 四家监管机构的同一个药</small></div>
+      <button class="theme-btn" id="theme-btn" type="button" aria-label="切换深浅色">深浅色</button>
+    </div>
+  </header>
+
+  <div class="wrap hero">
+    <h1>你们是一个审评小组：批，还是不批？</h1>
+    <p>每组扮演一家监管机构，只能看到这家机构做决定时手上的原文证据。读完证据包，在工作台上做分析选择、写下结论；提交结论后就可以揭晓，看四家机构的真实决定和理由。</p>
+  </div>
+
+  <nav class="steps" aria-label="步骤">
+    <div class="wrap">
+      <a href="#board1"><b>1</b>证据包</a>
+      <a href="#board2"><b>2</b>审评工作台</a>
+      <a href="#board3"><b>3</b>揭晓与辩论</a>
+      <span class="me" id="me-tag">尚未抽签</span>
+      <button class="reset-btn" id="reset-btn" type="button" title="清空这台设备上的记录，重新抽签">重新开始</button>
+    </div>
+  </nav>
+
+  <main>
+    <section class="board wrap" id="board1" aria-labelledby="b1-title">
+      <div class="board-head"><span class="num">STEP 1</span><h2 id="b1-title">读证据包</h2></div>
+      <div id="agency-cards"></div>
+      <div class="panel" id="package" style="margin-top:14px" hidden></div>
+    </section>
+
+    <section class="board wrap" id="board2" aria-labelledby="b2-title">
+      <div class="board-head"><span class="num">STEP 2</span><h2 id="b2-title">审评工作台</h2></div>
+      <div class="all-banner" id="all-banner" hidden>已揭晓：工作台现在显示四家机构的全部数据，可以对照着看。</div>
+      <div class="tabs" role="tablist" aria-label="适应症" id="pop-tabs">
+        <button type="button" role="tab" aria-selected="true" data-pop="ndd">非透析（NDD）· 对照安慰剂</button>
+        <button type="button" role="tab" aria-selected="false" data-pop="dd">透析（DD）· 对照 ESA</button>
+      </div>
+      <div class="panel" id="mace-panel"></div>
+      <div class="panel" id="effects-panel"></div>
+      <div class="panel" id="decision-panel">
+        <h3>你们的结论</h3>
+        <p class="sub" id="decision-sub">以所属机构的身份作答。</p>
+        <form id="decision-form">
+          <div class="form-grid">
+            <fieldset id="fs-ndd"><legend>非透析（NDD）</legend></fieldset>
+            <fieldset id="fs-dd"><legend>透析（DD）</legend></fieldset>
+            <fieldset id="fs-rm"><legend>风险管理工具（可多选）</legend></fieldset>
+            <fieldset><legend>一句话理由</legend><textarea id="reason" placeholder="例如：主要依据哪个分析、最担心哪项风险、能否靠说明书管住……"></textarea></fieldset>
+          </div>
+          <div style="margin-top:12px"><button class="btn primary" type="submit">提交结论</button><span class="saved" id="saved" hidden>已保存</span></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="board wrap" id="board3" aria-labelledby="b3-title">
+      <div class="board-head"><span class="num">STEP 3</span><h2 id="b3-title">揭晓与辩论</h2><p>提交结论后解锁：你们的结论 vs 真实决定、四家机构的解读、对辩和归因。</p></div>
+      <div class="panel reveal-gate" id="reveal-gate">
+        <p id="gate-msg" role="status">先在第 2 步提交你们的结论，再揭晓四家机构的真实决定。</p>
+        <button class="btn primary" type="button" id="reveal-btn" disabled>揭晓真实决定</button>
+      </div>
+      <div id="reveal" hidden>
+        <div class="panel" id="compare-panel"></div>
+        <div class="panel" id="overview-panel"></div>
+        <div class="panel" id="agency-panel"></div>
+        <div class="panel">
+          <h3>四家机构对辩</h3>
+          <div class="debate-ctl"><button class="btn" type="button" id="debate-prev">上一句</button><button class="btn primary" type="button" id="debate-next">下一句</button><button class="btn" type="button" id="debate-all">全部展开</button><span class="count" id="debate-count"></span></div>
+          <div class="debate" id="debate"></div>
+        </div>
+        <div class="panel">
+          <h3>最后一步：把分歧归到三层</h3>
+          <p class="sub">证据不同（决策时看到的数据不同）· 口径不同（分析选择不同）· 价值不同（需求、风险容忍度、监管工具）。可多选。</p>
+          <div class="attr-list" id="attr-list"></div>
+          <div style="margin-top:12px"><button class="btn primary" type="button" id="attr-check">对照参考答案</button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+
+  <div class="tooltip" id="tooltip" hidden></div>
+  <div class="popover" id="popover" role="dialog" aria-label="出处" hidden></div>
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="整页原文" hidden></div>
+</body>
+</html>

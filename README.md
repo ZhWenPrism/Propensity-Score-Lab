@@ -24,3 +24,9 @@
 `sim.js` 数据生成 · `stats.js` PS、匹配、加权、Cox、KM · `charts.js` SVG 图 · `app.js` 交互。纯静态页面，无需构建。
 
 字段结构参考：[MIMIC-IV 官方文档](https://mimic.mit.edu/docs/iv/) · [PhysioNet MIMIC-IV v3.1](https://physionet.org/content/mimiciv/3.1/)
+
+## 罗沙司他审评工作台
+
+**[打开](https://zhwenprism.github.io/Propensity-Score-Lab/roxadustat/)** · 文件在 `roxadustat/`
+
+获益-风险评估课堂练习：学生抽签扮演 FDA、EMA、NMPA 或 PMDA，只看该机构做决定时手上的证据卡，在工作台上选择分析、提交结论，然后揭晓四家机构的真实决定，对辩并归因分歧。证据卡中的数字与原文截图来自各机构公开的审评文件（FDA 咨询委员会简报与幻灯片、EMA EPAR、PMDA 审评报告、CDE 技术审评报告与说明书），版权归原机构。
