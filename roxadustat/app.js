@@ -4,8 +4,6 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const f2 = x => (Number.isFinite(x) ? x.toFixed(2) : "—");
 
-// Optional ?class=... changes which agency each group number draws.
-const CLASS_SEED = new URLSearchParams(location.search).get("class") || "roxadustat-bra";
 
 const STORE_KEY = "roxa-bra-v2";
 const state = Object.assign({
@@ -88,15 +86,14 @@ function forest(rows, { refs = [{ x: 1 }], truth = null, pick = null, clickable 
 function renderAgencyCards() {
   const box = $("agency-cards");
   if (!state.agency) {
-    box.innerHTML = `<div class="me-card"><div><b>还没有抽签</b><span>先抽签决定你们组扮演哪家监管机构。</span></div><button class="btn primary" type="button" id="reopen-draw">去抽签</button></div>`;
-    $("me-tag").textContent = "尚未抽签";
+    box.innerHTML = `<div class="me-card"><div><b>还没有选择机构</b><span>先选择你们组扮演哪家监管机构。</span></div><button class="btn primary" type="button" id="reopen-draw">去选择</button></div>`;
+    $("me-tag").textContent = "尚未选择机构";
     return;
   }
   const a = AGENCIES[state.agency];
-  const group = state.draw && state.draw.group ? `第 ${state.draw.group} 组 · ` : "";
   const shown = pkgAgency();
   const others = state.revealed ? `<div class="agency-tabs pkg-tabs" role="tablist" aria-label="查看各机构的证据包">${AGENCY_ORDER.map(k => `<button type="button" role="tab" data-pkg="${k}" aria-selected="${k === shown}"><span class="dot ${k}"></span>${AGENCIES[k].short} 的证据包${k === state.agency ? "（你们）" : ""}</button>`).join("")}</div>` : "";
-  box.innerHTML = `<div class="me-card"><span class="agency-tag"><span class="dot ${state.agency}"></span>${a.short}</span><div><b>${group}你们组扮演：${esc(a.name)}</b><span>决策节点 ${a.when}（${esc(a.whenLabel)}）。${state.revealed ? "已揭晓，现在可以翻看其他机构的证据包。" : "揭晓前只能看本机构的证据。"}</span></div></div>${others}`;
+  box.innerHTML = `<div class="me-card"><span class="agency-tag"><span class="dot ${state.agency}"></span>${a.short}</span><div><b>你们组扮演：${esc(a.name)}</b><span>决策节点 ${a.when}（${esc(a.whenLabel)}）。${state.revealed ? "已揭晓，现在可以翻看其他机构的证据包。" : "揭晓前只能看本机构的证据。"}</span></div></div>${others}`;
   $("me-tag").innerHTML = `<span class="dot ${state.agency}"></span>你们是：${a.short} · ${a.when}`;
 }
 const pkgAgency = () => (state.revealed && state.pkgAgency) || state.agency;
@@ -343,7 +340,7 @@ function renderReveal() {
   if (!state.revealed) {
     const done = !!(state.agency && state.decisions[state.agency]);
     $("reveal-btn").disabled = !done;
-    $("gate-msg").textContent = !state.agency ? "先抽签，读证据包，再在第 2 步提交你们的结论。"
+    $("gate-msg").textContent = !state.agency ? "先选择机构，读证据包，再在第 2 步提交你们的结论。"
       : done ? "结论已提交。准备好了就揭晓四家机构的真实决定。" : "先在第 2 步提交你们的结论，再揭晓四家机构的真实决定。";
     return;
   }
@@ -518,11 +515,11 @@ $("reveal-btn").addEventListener("click", () => {
   if (!state.agency || !state.decisions[state.agency]) return;
   state.revealed = true; save(); renderAll(); $("board3").scrollIntoView();
 });
-// Clears this browser's record (draw, answers, reading progress) and starts over at the draw.
+// Clears this browser's record (agency choice, answers, reading progress) and returns to the choice page.
 $("reset-btn").addEventListener("click", () => {
-  if (!confirm("清空这台设备上的抽签结果、阅读进度和作答，重新开始？")) return;
+  if (!confirm("清空这台设备上的机构选择、阅读进度和作答，重新开始？")) return;
   try { localStorage.removeItem(STORE_KEY); } catch { /* storage unavailable */ }
-  location.href = location.pathname + (CLASS_SEED !== "roxadustat-bra" ? `?class=${encodeURIComponent(CLASS_SEED)}` : "");
+  location.href = location.pathname;
 });
 $("agency-panel").addEventListener("click", e => {
   const b = e.target.closest("[data-view]");

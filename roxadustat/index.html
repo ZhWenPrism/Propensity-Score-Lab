@@ -5,27 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="罗沙司他获益-风险评估课堂工作台：每组扮演一家监管机构，只看它当时的原文证据包，做出结论后再对照四家机构的真实解读。">
   <title>罗沙司他审评工作台</title>
-  <link rel="stylesheet" href="styles.css?v=16">
-  <script src="data.js?v=16" defer></script>
-  <script src="briefs.js?v=16" defer></script>
-  <script src="cards.js?v=16" defer></script>
-  <script src="sim.js?v=16" defer></script>
-  <script src="app.js?v=16" defer></script>
-  <script src="draw.js?v=16" defer></script>
+  <link rel="stylesheet" href="styles.css?v=18">
+  <script src="data.js?v=18" defer></script>
+  <script src="briefs.js?v=18" defer></script>
+  <script src="cards.js?v=18" defer></script>
+  <script src="sim.js?v=18" defer></script>
+  <script src="app.js?v=18" defer></script>
+  <script src="pick.js?v=18" defer></script>
 </head>
 <body>
-  <div class="draw-stage" id="draw-stage" role="dialog" aria-modal="true" aria-labelledby="draw-title" hidden>
+  <div class="draw-stage" id="draw-stage" role="dialog" aria-modal="true" aria-labelledby="draw-title" tabindex="-1" hidden>
     <div class="draw-inner">
       <p class="draw-eyebrow">罗沙司他 · 获益-风险评估</p>
-      <h1 id="draw-title">抽签：你们组扮演哪家监管机构？</h1>
-      <p class="draw-lead">四家监管机构审的是同一个药，却做出了不同的决定。抽到哪一家，你们就只能看到它当时手上的证据。</p>
-      <div class="draw-table" id="draw-table" aria-hidden="true"></div>
-      <div class="draw-result" id="draw-result" aria-live="polite"></div>
-      <form class="draw-form" id="draw-form">
-        <label for="draw-group">组号<small>可不填</small></label>
-        <input id="draw-group" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="如 3">
-        <button class="draw-btn" id="draw-start" type="submit">开始抽签</button>
-      </form>
+      <h1 id="draw-title">选择你们组扮演的监管机构</h1>
+      <p class="draw-lead">四家监管机构审的是同一个药，却做出了不同的决定。选定一家后，你们只能看到它当时手上的证据。</p>
+      <div class="pick-grid" id="pick-grid" aria-label="监管机构"></div>
+      <div class="pick-confirm" id="pick-confirm" aria-live="polite"></div>
     </div>
   </div>
   <header class="top">
@@ -45,8 +40,8 @@
       <a href="#board1"><b>1</b>证据包</a>
       <a href="#board2"><b>2</b>审评工作台</a>
       <a href="#board3"><b>3</b>揭晓与辩论</a>
-      <span class="me" id="me-tag">尚未抽签</span>
-      <button class="reset-btn" id="reset-btn" type="button" title="清空这台设备上的记录，重新抽签">重新开始</button>
+      <span class="me" id="me-tag">尚未选择机构</span>
+      <button class="reset-btn" id="reset-btn" type="button" title="清空这台设备上的记录，重新选择机构">重新开始</button>
     </div>
   </nav>
 
