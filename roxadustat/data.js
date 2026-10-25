@@ -260,19 +260,82 @@ const DEBATE = [
       { who: "pmda", say: "它是作用机制不同于 ESA 的口服药，可以成为新的治疗选择。", q: { d: "pmda_review_2019", p: 77, t: "Because roxadustat is an oral drug with its action mechanism different from ESAs, roxadustat can become a new treatment option for dialysis patients with renal anemia." } },
       { who: "fda", say: "我们不要求新药比现有治疗更好或更安全，但会结合已有疗法来权衡。", q: { d: "fda_briefing", p: 12, t: "Our standards do not state that a drug must be more effective than existing treatment(s) to merit approval, or be safer than existing treatments. Yet when weighing the approval of a new drug, we do consider its benefits and risks in context, including the availability of other therapies." } },
       { who: "ema", say: "我们的办法是把获益-风险结论限定在本应符合 ESA 治疗条件的患者。", q: { d: "ema_epar", p: 151, t: "Based on this certainty, it is proposed that treatment with roxadustat should be restricted to those patients that would normally qualify for ESA therapy." } },
-      { who: "host", say: "中日先批，首先是证据不同；欧美结论相反，主要是分析口径和价值判断不同。最后一步，请把每个分歧点归到这三层。", q: null }
+      { who: "host", say: "四家机构的分歧，有的来自手上的数据，有的来自分析选择，有的来自取舍。下面的作业请逐一判断，并说明理由。", q: null }
     ]
   }
 ];
 
-const ATTRIBUTION = [
-  { id: "d1", text: "NDD 的 MACE：FDA 以 On-study 为主（1.10），EMA 以加权 on-treatment 为主（1.26）", answer: ["method"], note: "同一批数据，主要分析不同；中日决策时没有这批数据，也算证据不同。", alsoEvidence: true },
-  { id: "d2", text: "DD 的 MACE：FDA 不纳入 613，EMA 纳入并按“转换 / 校正”拆分", answer: ["method", "value"], note: "纳入与拆分是分析选择；据拆分结果限定人群是价值判断。" },
-  { id: "d3", text: "血栓：PMDA 和 EMA 认为靠说明书和 Hb 监测可以管理，FDA 委员会要求先做试验", answer: ["value", "evidence"], note: "风险可否靠工具管理是价值判断；CDE 用跨试验比较、FDA 用同期对照，证据强度不同。" },
-  { id: "d4", text: "Hb 过冲：FDA 关注上升速度与血栓的关联，EMA 认为过冲不能解释风险、关注低反应者", answer: ["method"], note: "对同一现象的解释框架不同。" },
-  { id: "d5", text: "口服的价值：FDA 认为对血透患者优势不明显，CDE 和 PMDA 把“口服、新机制”作为主要获益", answer: ["value"], note: "未满足需求和便利性的权重不同。" },
-  { id: "d6", text: "不确定性：FDA 委员会要上市前验证，CDE 和 PMDA 用上市后研究，EMA 用限定人群", answer: ["value"], note: "监管工具和风险容忍度不同。" },
-  { id: "d7", text: "数据诚信：FibroGen 披露心血管主分析用了事后更改的分层因素", answer: ["method"], note: "分层因素是分析选择；按文件原文，FDA 和 EMA 都认为结果相近，没有作为决策依据。" }
+// ---- Board 5: homework. Each question: pick the main layer of the disagreement, then explain in 1–2 sentences.
+const HOMEWORK = [
+  {
+    id: "q1",
+    title: "同样的数据，两个 HR",
+    q: "非透析人群用的是同一批安慰剂对照研究。FDA 主要看 On-study 分析，HR 1.10；EMA 主要看按停药加权的 on-treatment 分析，HR 1.26。两家结论不同，主要属于哪一层？",
+    answer: ["method"],
+    verdict: "口径不同：数据一样，差别在于选了哪种分析。",
+    points: [
+      "两组停药比例差很多（完成率 62% 对 41%），停药后的事件算不算、怎么校正，会直接改变 HR。",
+      "FDA 认为只算用药期间会截掉安慰剂组高风险患者退出后的事件，对罗沙司他不利，所以以 On-study 为主；EMA 按自己的指南首选 on-treatment 分析，并用加权校正停药。",
+      "EMA 还对安慰剂比较用了更严的 1.3 界值，这一点带有价值判断。"
+    ],
+    pitfall: "不是谁算错了。两种分析回答的问题不同，偏倚方向也可能相反。",
+    src: [["fda_briefing", 47, "1.10 (0.96, 1.27) 1.38 (1.11, 1.70)"], ["ema_epar", 144, "on-treatment HR of 1.26 (1.02 -1.55) for MACE"],
+      ["fda_briefing", 17, "62% and 41% of patients randomized to roxadustat and placebo"],
+      ["fda_briefing", 48, "Thus, the differential dropout may contribute to a biased estimate of the treatment effect in the OT+7 analysis that disfavors roxadustat."],
+      ["ema_epar", 132, "An analysis, including the on-treatment events, is the preferred analysis according to the EMA reflection paper."], ["ema_epar", 132, "outside the 1.3 margin"]]
+  },
+  {
+    id: "q2",
+    title: "为什么中国和日本先批",
+    q: "中国（2018 年）和日本（2019 年）批准时，全球 III 期的心血管汇总分析还没有出来；FDA 和 EMA 在 2021 年审评时已经有了。这一差别主要属于哪一层？",
+    answer: ["evidence"],
+    verdict: "证据不同：做决定时手上的数据不一样。",
+    points: [
+      "CDE 审评时，国外 11 项试验还在进行（约 5,300 人用药），心血管事件只能列为缺失信息。",
+      "所以 CDE 要求上市后再做 2,000 例、用药至少 12 个月的安全性研究，用上市后的数据补上这块空白。",
+      "中日也看重口服、新作用机制这些好处，这部分属于价值判断，但最根本的区别是做决定的时间点。"
+    ],
+    pitfall: "不能简单说中日标准更低：它们是在证据更少的时间点做的决定。",
+    src: [["cde_review_CXHS1700019-20", 14, "国外有11项临床试验正在进行中，约5300名受试者接受罗沙司他治疗"], ["cde_review_CXHS1700019-20", 15, "将心血管事件作为缺失信息"],
+      ["cde_review_CXHS1700019-20", 20, "入组 2000 例，受试者将接受罗沙司他治疗至少 12 个月。"],
+      ["cde_2018_annual_report", 13, "该药品具有全新作用机制，与现有常规治疗药物相比，可口服给药，在提高铁利用率、无需静脉补铁等方面具有临床优势。"],
+      ["fda_briefing", 8, "has marketing authorization in the People's Republic of China (December, 2018) and Japan (September, 2019)"]]
+  },
+  {
+    id: "q3",
+    title: "血栓风险能不能靠说明书管住",
+    q: "各家都看到了血栓风险偏高。PMDA 认为靠说明书警告和根据 Hb 调整剂量可以管住；FDA 咨询委员会认为降低剂量的方案要先做试验验证。这一分歧主要属于哪一层？",
+    answer: ["value"],
+    verdict: "价值不同：对同一个风险，愿不愿意先批准、再用说明书和剂量规则来管。",
+    points: [
+      "风险信号本身没有争议：日本 0307 研究中，血栓栓塞相关事件 9.3% 对 3.9%。",
+      "PMDA 选择在说明书加 WARNING、按 Hb 调整剂量；FDA 委员会认为建模不能代替批准前的临床试验。",
+      "两边对风险的容忍度、对监管工具的偏好不同，这就是价值判断。"
+    ],
+    pitfall: "PMDA 不是没看到风险，而是在承认风险的前提下，选择用说明书和剂量来管理。",
+    src: [["pmda_review_2019", 73, "Thromboembolism-related events total 9.3 (14) 3.9 (6)"],
+      ["pmda_review_2019", 73, "the incidence of thromboembolism-related events in the roxadustat group was higher than that in the DA group."],
+      ["pmda_review_2019", 66, "the safety of roxadustat in patients with renal anemia on HD or PD is acceptable with a view to dose adjustment based on careful monitoring of Hb values, etc."],
+      ["pmda_review_2019", 89, "Roxadustat therapy may cause serious thromboembolism including cerebral infarction, myocardial infarction, and pulmona"],
+      ["fda_minutes", 6, "Several committee members remained concerned that the Applicant's proposed dosing regimen to reduce thrombosis risks was not tested, and stated that modeling should not replace a clinical trial prior to approval."]]
+  },
+  {
+    id: "q4",
+    title: "透析人群：哪些研究放在一起算",
+    q: "透析人群中，FDA 只把 3 项 epoetin alfa 对照研究合在一起，613 研究单独分析；EMA 把 4 项研究都合在一起，再按“从稳定 ESA 转换”和“Hb 校正”两类患者拆开看。两家做法的差别主要属于哪一层？",
+    answer: ["method"],
+    verdict: "口径不同：哪些研究合并、要不要拆开看，是分析上的选择。",
+    points: [
+      "FDA 单列 613，理由是它用了两种 ESA 作对照、只在欧洲开展，还允许用美国未批准的 ESA。",
+      "EMA 拆开后看到风险主要在从稳定 ESA 转换的患者（HR 1.18），据此把适用人群限定为本应使用 ESA 的患者；这后一步是价值判断。",
+      "拆分是事后分析，只能说明结果与“转换设计带来风险”这个解释相符，不能证明它。"
+    ],
+    pitfall: "Hb 校正池 HR 0.81 的置信区间包含 1，不能据此说罗沙司他更安全。",
+    src: [["fda_briefing", 14, "the study differs from those above because it employed two active comparators (darbepoetin alfa and epoetin alfa), was conducted exclusively in Europe, and permitted use of an ESA that is not licensed in the US."],
+      ["ema_epar", 148, "stable DD subpool (HR 1.18 (1.00 – 1.38)"], ["ema_epar", 148, "(HR 0.81 (0.62, 1.05) for OT-7"],
+      ["ema_epar", 133, "This has been clarified by the design related issue of the need for switching to roxadustat treatment in one study arm whereas ESA patients could remain on their stabilised dose for maintaining their Hb level in the target range."],
+      ["ema_epar", 151, "Based on this certainty, it is proposed that treatment with roxadustat should be restricted to those patients that would normally qualify for ESA therapy."]]
+  }
 ];
 
 const LAYERS = { evidence: "证据不同", method: "口径不同", value: "价值不同" };
@@ -311,8 +374,7 @@ const FDA_EFFECTS = {
       { k: "严重败血症/感染性休克", r: "2.25", c: "0.95", unit: "/100 人年", per: true, by: "fda", src: [["fda_presentations", 32, "Sepsis/septic shock 87 (3.65) 22 (1.17) 2.25 0.95"]] },
       { k: "严重癫痫", r: "0.2", c: "0.0", unit: "/100 人年", per: true, by: "fda", src: [["fda_presentations", 32, "Seizure FDA 9 (0.38) 1 (0.05) 0.2 0.0"]] },
       { k: "严重高钾血症", r: "1.45", c: "0.95", unit: "/100 人年", per: true, by: "fda", src: [["fda_presentations", 32, "Hyperkalemia (term) 56 (2.35) 22 (1.17) 1.45 0.95"]] }
-    ],
-    tradeoffText: "获益是“患者比例”（输血少了约 10 个百分点），风险是“每 100 人年”的发生率，单位不同，要先换算才能放在一起比。两个 MACE 窗口算出的超额事件也差很多。"
+    ]
   },
   dd: {
     note: "FDA 简报 Table 23（严重不良事件，OT+7）和 MACE 表。对照是 epoetin alfa。",
@@ -330,8 +392,7 @@ const FDA_EFFECTS = {
       { k: "严重癫痫", r: "0.78", c: "0.51", unit: "/100 人年", per: true, by: "fda", src: [["fda_briefing", 41, "Seizure FDA 26 (1.34) 19 (0.98) 0.78 0.51"]] },
       { k: "严重胰腺炎", r: "0.60", c: "0.29", unit: "/100 人年", per: true, by: "fda", src: [["fda_briefing", 41, "Pancreatitis FDA 20 (1.03) 11 (0.57) 0.60 0.29"]] },
       { k: "严重低血糖", r: "0.87", c: "0.67", unit: "/100 人年", per: true, by: "fda", src: [["fda_briefing", 41, "Hypoglycemia FDA 29 (1.49) 25 (1.29) 0.87 0.67"]] }
-    ],
-    tradeoffText: "Hb 与 epoetin alfa 相当，输血差异无法下结论。主要获益是口服；FDA 认为对血透患者口服的优势不明显。"
+    ]
   }
 };
 

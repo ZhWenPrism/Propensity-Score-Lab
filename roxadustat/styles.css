@@ -158,14 +158,6 @@ blockquote cite a{color:var(--muted)}
 .turn.host .say{color:var(--ink-2);font-style:italic}
 .debate-ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .debate-ctl .count{font-size:12px;color:var(--muted)}
-.attr-list{display:grid;gap:10px}
-.attr{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface)}
-.attr p{margin:0 0 8px;font-size:14px}
-.attr .chips{display:flex;gap:6px;flex-wrap:wrap}
-.attr .chips label{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);border-radius:999px;padding:3px 10px;font-size:13px;background:var(--panel);cursor:pointer}
-.attr .chips input{accent-color:var(--ink);margin:0}
-.attr .answer{margin-top:8px;font-size:13px;color:var(--ink-2)}
-.attr .answer b{color:var(--ink)}
 .tooltip{position:fixed;z-index:50;max-width:340px;padding:9px 11px;border-radius:9px;background:var(--ink);color:var(--paper);font-size:12px;line-height:1.55;pointer-events:none;box-shadow:0 8px 22px rgba(0,0,0,.18)}
 .popover{position:fixed;z-index:60;max-width:420px;padding:12px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line-strong);box-shadow:0 12px 30px rgba(0,0,0,.18);font-size:13px}
 .popover .doc{font-weight:700;margin-bottom:6px}
@@ -328,6 +320,39 @@ body.lb-open{overflow:hidden}
   .viz-legend .unit{margin-left:0}
   table.effects td:first-child{min-width:7.5em}
 }
+/* ---- homework ---- */
+.tradeoff.single{grid-template-columns:minmax(0,1fr)}
+.hw-name{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hw-name label{font-weight:800;font-size:15px}
+.hw-name input{min-width:220px;border:1px solid var(--line-strong);border-radius:10px;padding:8px 12px;background:var(--surface);font-size:15px}
+.hw-name .sub{margin:0}
+.hw-online{margin:8px 0 0;font-size:13px;color:var(--warn)}
+.hw-online.ok{color:var(--good)}
+.hw-done{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border-radius:12px;background:var(--hl);font-size:14px}
+.hw-reading{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.hw-reading h4,.hw-qtitle{margin:0 0 4px;font-size:16px}
+.hw-qtitle{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+.hw-qs{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:14px}
+.hw-q{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--surface)}
+.hw-qhead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.hw-no{font-size:12px;font-weight:800;letter-spacing:.08em;color:var(--muted)}
+.hw-qhead h4{margin:0;font-size:15.5px}
+.hw-stem{margin:6px 0 10px;font-size:14px;line-height:1.7;color:var(--ink-2)}
+.hw-q .chips{display:flex;gap:6px;flex-wrap:wrap}
+.hw-q .chips label{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-strong);border-radius:999px;padding:4px 12px;font-size:13.5px;background:var(--panel);cursor:pointer}
+.hw-q .chips input{accent-color:var(--ink);margin:0}
+.hw-why{display:grid;gap:4px;margin-top:10px;font-size:13px;color:var(--ink-2)}
+.hw-why textarea{min-height:58px;background:var(--panel)}
+.hw-submit{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
+.hw-submit .btn{padding:9px 22px;font-size:14px}
+.hw-msg{font-size:13px;color:var(--warn)}
+.hw-ref{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.hw-ref-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14px}
+.hw-verdict{margin:8px 0 6px;font-weight:700;font-size:14px}
+.hw-ref ul{margin:0;padding-left:20px;font-size:13.5px;line-height:1.7;color:var(--ink-2)}
+.hw-ref li{margin:3px 0}
+.hw-pitfall{margin:8px 0 0;font-size:13.5px;color:var(--ink-2)}
+.hw-src{margin-top:8px;font-size:12px;color:var(--muted)}
 /* ---- workbench dumbbells ---- */
 .dumb{display:grid}
 .db-section+.db-section{margin-top:14px}

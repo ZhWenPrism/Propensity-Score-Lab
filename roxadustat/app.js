@@ -8,12 +8,12 @@ const f2 = x => (Number.isFinite(x) ? x.toFixed(2) : "—");
 const STORE_KEY = "roxa-bra-v2";
 const state = Object.assign({
   agency: null, pop: "ndd", nddPick: null, ddPick: null, include613: false, split: false,
-  read: {}, shotOpen: {}, decisions: {}, revealed: false, debateStep: 1, debateAll: false,
-  attr: {}, attrChecked: false, viewAgency: null, weight: 20,
+  read: {}, shotOpen: {}, decisions: {}, revealed: false, compared: false, debateStep: 1, debateAll: true,
+  hw: {}, viewAgency: null, weight: 20,
   sim: { trueHR: 1.0, dropPlaHigh: 0.85, postMult: 1.0, seed: 1 }
 }, (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch { return {}; } })());
 const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* storage unavailable */ } };
-const allMode = () => state.revealed;
+const allMode = () => state.compared;
 
 // ---- sources: chips + popover ---------------------------------------------
 const REG = [];
@@ -92,11 +92,11 @@ function renderAgencyCards() {
   }
   const a = AGENCIES[state.agency];
   const shown = pkgAgency();
-  const others = state.revealed ? `<div class="agency-tabs pkg-tabs" role="tablist" aria-label="查看各机构的证据包">${AGENCY_ORDER.map(k => `<button type="button" role="tab" data-pkg="${k}" aria-selected="${k === shown}"><span class="dot ${k}"></span>${AGENCIES[k].short} 的证据包${k === state.agency ? "（你们）" : ""}</button>`).join("")}</div>` : "";
-  box.innerHTML = `<div class="me-card"><span class="agency-tag"><span class="dot ${state.agency}"></span>${a.short}</span><div><b>你们组扮演：${esc(a.name)}</b><span>决策节点 ${a.when}（${esc(a.whenLabel)}）。${state.revealed ? "已揭晓，现在可以翻看其他机构的证据包。" : "揭晓前只能看本机构的证据。"}</span></div></div>${others}`;
+  const others = state.compared ? `<div class="agency-tabs pkg-tabs" role="tablist" aria-label="查看各机构的证据包">${AGENCY_ORDER.map(k => `<button type="button" role="tab" data-pkg="${k}" aria-selected="${k === shown}"><span class="dot ${k}"></span>${AGENCIES[k].short} 的证据包${k === state.agency ? "（你们）" : ""}</button>`).join("")}</div>` : "";
+  box.innerHTML = `<div class="me-card"><span class="agency-tag"><span class="dot ${state.agency}"></span>${a.short}</span><div><b>你们组扮演：${esc(a.name)}</b><span>决策节点 ${a.when}（${esc(a.whenLabel)}）。${state.compared ? "已进入四家比较，现在可以翻看其他机构的证据包。" : "比较四家机构之前，只能看本机构的证据。"}</span></div></div>${others}`;
   $("me-tag").innerHTML = `<span class="dot ${state.agency}"></span>你们是：${a.short} · ${a.when}`;
 }
-const pkgAgency = () => (state.revealed && state.pkgAgency) || state.agency;
+const pkgAgency = () => (state.compared && state.pkgAgency) || state.agency;
 
 // ---- Board 2: workbench ------------------------------------------------------
 const analysesFor = pop => {
@@ -245,7 +245,7 @@ function renderEffects() {
   const maxD = Math.max(...risks.map(r => r.d), 1);
   const bars = `<div class="bars">${risks.map(r => `<div class="brow" data-tip="${esc(`${r.k}<br>每 1000 人年差 ${r.d.toFixed(0)} 例`)}"><span class="blabel">${esc(r.k)}</span><span class="btrack"><i class="${r.by}" style="width:${Math.max(0, r.d) / maxD * 100}%"></i></span><span class="bval">${r.d >= 0 ? "+" : "−"}${Math.abs(r.d).toFixed(0)}</span></div>`).join("")}</div>`;
   const barsBlock = `<div><h4 style="margin:0 0 6px;font-size:14px">风险：每 1000 人年多出的事件</h4>${bars}</div>`;
-  let side;
+  let side = "";
   if (e.tradeoff && (allMode() || state.agency === "ema")) {
     const ben = e.favourable.find(r => r.k.startsWith(e.tradeoff.benefitKey)), risk = e.unfavourable.find(r => r.k === e.tradeoff.riskKey);
     const B = (Number(ben.c) - Number(ben.r)) * 10, R = (Number(risk.r) - Number(risk.c)) * 10, be = B / R, X = state.weight || 20;
@@ -256,13 +256,10 @@ function renderEffects() {
         <div class="slider" style="margin-top:10px"><label for="s-w">你们认为 1 次 MACE ≈ 多少次救援治疗<output id="o-w">${X}</output></label><input type="range" id="s-w" min="1" max="100" step="1" value="${X}" data-b="${B}" data-r="${R}"></div>
         <p id="w-read">${weightRead(B, R, X)}</p>
         <p>注意：救援治疗包括开始使用 ESA，而 ESA 本身就是现有的标准治疗。</p></div>`;
-  } else {
-    const text = e.tradeoffText || "对照是 ESA：Hb 相当，主要获益是口服和静脉铁更少，很难和事件率放在同一尺度上比较。讨论：这些获益值得承担左边这些额外事件吗？";
-    side = `<div class="breakeven"><div class="big" style="font-size:22px">获益和风险能放在同一尺度吗？</div><p>${esc(text)}</p></div>`;
   }
   const roxCls = allMode() ? "" : state.agency;
   panel.innerHTML = `<h3>效应表：获益与风险放在一起看</h3><p class="sub">${esc(e.note)}${srcChips(e.noteSrc)}</p>${dumbbells(e, roxCls, control)}
-    <details class="table-details"><summary>表格视图（含出处）</summary>${table}</details><div class="tradeoff">${barsBlock}${side}</div>`;
+    <details class="table-details"><summary>表格视图（含出处）</summary>${table}</details><div class="tradeoff${side ? "" : " single"}">${barsBlock}${side}</div>`;
 }
 
 function renderNmpa() {
@@ -340,11 +337,30 @@ function renderReveal() {
   if (!state.revealed) {
     const done = !!(state.agency && state.decisions[state.agency]);
     $("reveal-btn").disabled = !done;
+    $("reveal-btn").textContent = state.agency ? `揭晓 ${AGENCIES[state.agency].short} 的真实决定` : "揭晓真实决定";
     $("gate-msg").textContent = !state.agency ? "先选择机构，读证据包，再在第 2 步提交你们的结论。"
-      : done ? "结论已提交。准备好了就揭晓四家机构的真实决定。" : "先在第 2 步提交你们的结论，再揭晓四家机构的真实决定。";
+      : done ? "结论已提交。准备好了就揭晓你们机构的真实决定。" : "先在第 2 步提交你们的结论，再揭晓真实决定。";
     return;
   }
-  renderCompare(); renderOverview(); renderAgencyPanel(); renderDebate(); renderAttribution();
+  renderCompare(); renderOwn();
+}
+
+function renderOwn() {
+  const k = state.agency;
+  $("own-panel").innerHTML = `<h3>${AGENCIES[k].short} 是怎么想的</h3>
+    <ol class="steps-list">${REVEAL[k].steps.map(s => `<li><div class="k">${esc(s.k)}</div><div class="v">${esc(s.v)}</div>${quoteBlock(s.q)}</li>`).join("")}</ol>`;
+}
+
+// ---- Board 4: all four agencies, opened by its own button after the own-agency reveal ----
+function renderCompareAll() {
+  $("compare-gate").hidden = state.compared;
+  $("compare-all").hidden = !state.compared;
+  if (!state.compared) {
+    $("compare-btn").disabled = !state.revealed;
+    $("compare-msg").textContent = state.revealed ? "看完你们机构的决定后，再比较四家机构的差异。" : "先揭晓你们机构的决定，再比较四家机构。";
+    return;
+  }
+  renderOverview(); renderAgencyPanel();
 }
 
 function renderCompare() {
@@ -425,19 +441,9 @@ function renderDebate() {
   $("debate-all").textContent = state.debateAll ? "逐句播放" : "全部展开";
 }
 
-function renderAttribution() {
-  $("attr-list").innerHTML = ATTRIBUTION.map(a => {
-    const picked = state.attr[a.id] || [];
-    const chips = Object.entries(LAYERS).map(([k, v]) => `<label><input type="checkbox" data-attr="${a.id}" value="${k}" ${picked.includes(k) ? "checked" : ""}>${v}</label>`).join("");
-    const ans = state.attrChecked ? `<div class="answer">参考：<b>${a.answer.map(k => LAYERS[k]).join(" + ")}</b>${a.alsoEvidence ? "（另含证据不同）" : ""}。${esc(a.note)}</div>` : "";
-    return `<div class="attr"><p>${esc(a.text)}</p><div class="chips">${chips}</div>${ans}</div>`;
-  }).join("");
-  $("attr-check").textContent = state.attrChecked ? "隐藏参考答案" : "对照参考答案";
-}
-
 // ---- render + events ---------------------------------------------------------
 function renderAll() {
-  renderAgencyCards(); renderBriefs(); renderWorkbench(); renderDecisionForm(); renderReveal();
+  renderAgencyCards(); renderBriefs(); renderWorkbench(); renderDecisionForm(); renderReveal(); renderCompareAll(); renderHomework();
   document.querySelectorAll("#pop-tabs [data-pop]").forEach(t => t.setAttribute("aria-selected", t.dataset.pop === state.pop));
 }
 
@@ -515,6 +521,10 @@ $("reveal-btn").addEventListener("click", () => {
   if (!state.agency || !state.decisions[state.agency]) return;
   state.revealed = true; save(); renderAll(); $("board3").scrollIntoView();
 });
+$("compare-btn").addEventListener("click", () => {
+  if (!state.revealed) return;
+  state.compared = true; save(); renderAll(); $("board4").scrollIntoView();
+});
 // Clears this browser's record (agency choice, answers, reading progress) and returns to the choice page.
 $("reset-btn").addEventListener("click", () => {
   if (!confirm("清空这台设备上的机构选择、阅读进度和作答，重新开始？")) return;
@@ -525,17 +535,6 @@ $("agency-panel").addEventListener("click", e => {
   const b = e.target.closest("[data-view]");
   if (b) { state.viewAgency = b.dataset.view; save(); renderAgencyPanel(); }
 });
-$("debate-next").addEventListener("click", () => { state.debateStep += 1; save(); renderDebate(); });
-$("debate-prev").addEventListener("click", () => { state.debateStep = Math.max(1, state.debateStep - 1); save(); renderDebate(); });
-$("debate-all").addEventListener("click", () => { state.debateAll = !state.debateAll; save(); renderDebate(); });
-$("attr-list").addEventListener("change", e => {
-  const id = e.target.dataset.attr;
-  if (!id) return;
-  const set = new Set(state.attr[id] || []);
-  if (e.target.checked) set.add(e.target.value); else set.delete(e.target.value);
-  state.attr[id] = [...set]; save();
-});
-$("attr-check").addEventListener("click", () => { state.attrChecked = !state.attrChecked; save(); renderAttribution(); });
 $("theme-btn").addEventListener("click", () => {
   const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   document.documentElement.dataset.theme = cur === "dark" ? "light" : "dark";

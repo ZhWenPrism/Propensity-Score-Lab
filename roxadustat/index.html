@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="获益-风险评估沙盘（罗沙司他）：每组扮演一家监管机构，只看它当时的原文证据包，做出结论后再对照四家机构的真实解读。">
   <title>获益-风险评估沙盘</title>
-  <link rel="stylesheet" href="styles.css?v=21">
-  <script src="data.js?v=21" defer></script>
-  <script src="briefs.js?v=21" defer></script>
-  <script src="cards.js?v=21" defer></script>
-  <script src="sim.js?v=21" defer></script>
-  <script src="app.js?v=21" defer></script>
-  <script src="pick.js?v=21" defer></script>
+  <link rel="stylesheet" href="styles.css?v=24">
+  <script src="data.js?v=24" defer></script>
+  <script src="briefs.js?v=24" defer></script>
+  <script src="cards.js?v=24" defer></script>
+  <script src="homework.js?v=24" defer></script>
+  <script src="sim.js?v=24" defer></script>
+  <script src="app.js?v=24" defer></script>
+  <script src="pick.js?v=24" defer></script>
 </head>
 <body>
   <div class="draw-stage" id="draw-stage" role="dialog" aria-modal="true" aria-labelledby="draw-title" tabindex="-1" hidden>
@@ -32,14 +33,16 @@
 
   <div class="wrap hero">
     <h1>你们是一个审评小组：批，还是不批？</h1>
-    <p>每组扮演一家监管机构，只能看到这家机构做决定时手上的原文证据。读完证据包，在工作台上做分析选择、写下结论；提交结论后就可以揭晓，看四家机构的真实决定和理由。</p>
+    <p>每组扮演一家监管机构，只能看到这家机构做决定时手上的原文证据。读完证据包，在工作台上做分析选择、写下结论；提交结论后揭晓你们机构的真实决定，再比较四家机构，最后完成课后作业。</p>
   </div>
 
   <nav class="steps" aria-label="步骤">
     <div class="wrap">
       <a href="#board1"><b>1</b>证据包</a>
       <a href="#board2"><b>2</b>审评工作台</a>
-      <a href="#board3"><b>3</b>揭晓与辩论</a>
+      <a href="#board3"><b>3</b>揭晓</a>
+      <a href="#board4"><b>4</b>四家比较</a>
+      <a href="#board5"><b>5</b>课后作业</a>
       <span class="me" id="me-tag">尚未选择机构</span>
       <button class="reset-btn" id="reset-btn" type="button" title="清空这台设备上的记录，重新选择机构">重新开始</button>
     </div>
@@ -54,7 +57,7 @@
 
     <section class="board wrap" id="board2" aria-labelledby="b2-title">
       <div class="board-head"><span class="num">STEP 2</span><h2 id="b2-title">审评工作台</h2></div>
-      <div class="all-banner" id="all-banner" hidden>已揭晓：工作台现在显示四家机构的全部数据，可以对照着看。</div>
+      <div class="all-banner" id="all-banner" hidden>已进入四家比较：工作台现在显示四家机构的全部数据，可以对照着看。</div>
       <div class="tabs" role="tablist" aria-label="适应症" id="pop-tabs">
         <button type="button" role="tab" aria-selected="true" data-pop="ndd">非透析（NDD）· 对照安慰剂</button>
         <button type="button" role="tab" aria-selected="false" data-pop="dd">透析（DD）· 对照 ESA</button>
@@ -77,27 +80,32 @@
     </section>
 
     <section class="board wrap" id="board3" aria-labelledby="b3-title">
-      <div class="board-head"><span class="num">STEP 3</span><h2 id="b3-title">揭晓与辩论</h2><p>提交结论后解锁：你们的结论 vs 真实决定、四家机构的解读、对辩和归因。</p></div>
+      <div class="board-head"><span class="num">STEP 3</span><h2 id="b3-title">揭晓你们机构的决定</h2><p>提交结论后解锁，只揭晓你们这一家机构的真实决定和理由。</p></div>
       <div class="panel reveal-gate" id="reveal-gate">
-        <p id="gate-msg" role="status">先在第 2 步提交你们的结论，再揭晓四家机构的真实决定。</p>
+        <p id="gate-msg" role="status">先在第 2 步提交你们的结论，再揭晓真实决定。</p>
         <button class="btn primary" type="button" id="reveal-btn" disabled>揭晓真实决定</button>
       </div>
       <div id="reveal" hidden>
         <div class="panel" id="compare-panel"></div>
+        <div class="panel" id="own-panel"></div>
+      </div>
+    </section>
+
+    <section class="board wrap" id="board4" aria-labelledby="b4-title">
+      <div class="board-head"><span class="num">STEP 4</span><h2 id="b4-title">比较四家机构</h2><p>同一个药，四家机构在不同时间、看着不同的证据，做出了不同的决定。</p></div>
+      <div class="panel reveal-gate" id="compare-gate">
+        <p id="compare-msg" role="status">先揭晓你们机构的决定，再比较四家机构。</p>
+        <button class="btn primary" type="button" id="compare-btn" disabled>比较四家机构的差异</button>
+      </div>
+      <div id="compare-all" hidden>
         <div class="panel" id="overview-panel"></div>
         <div class="panel" id="agency-panel"></div>
-        <div class="panel">
-          <h3>四家机构对辩</h3>
-          <div class="debate-ctl"><button class="btn" type="button" id="debate-prev">上一句</button><button class="btn primary" type="button" id="debate-next">下一句</button><button class="btn" type="button" id="debate-all">全部展开</button><span class="count" id="debate-count"></span></div>
-          <div class="debate" id="debate"></div>
-        </div>
-        <div class="panel">
-          <h3>最后一步：把分歧归到三层</h3>
-          <p class="sub">证据不同（决策时看到的数据不同）· 口径不同（分析选择不同）· 价值不同（需求、风险容忍度、监管工具）。可多选。</p>
-          <div class="attr-list" id="attr-list"></div>
-          <div style="margin-top:12px"><button class="btn primary" type="button" id="attr-check">对照参考答案</button></div>
-        </div>
       </div>
+    </section>
+
+    <section class="board wrap" id="board5" aria-labelledby="b5-title">
+      <div class="board-head"><span class="num">STEP 5</span><h2 id="b5-title">课后作业</h2><p>读四家机构的对辩，回答 4 道题：判断每个分歧主要属于哪一层，并用 1–2 句话说明理由。</p></div>
+      <div class="panel" id="hw-panel"></div>
     </section>
   </main>
 
