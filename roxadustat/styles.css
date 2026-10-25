@@ -389,8 +389,8 @@ body.draw-open{overflow:hidden}
 .draw-stage.is-leaving{opacity:0}
 .draw-stage:focus{outline:none}
 .draw-inner{width:100%;max-width:960px;text-align:center}
-.draw-eyebrow{margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:.32em;color:#9b9a92}
-.draw-stage h1{margin:0;font-size:clamp(21px,5.6vw,40px);line-height:1.2;letter-spacing:-.02em;font-weight:800}
+.draw-eyebrow{margin:0 0 14px;font-size:clamp(15px,3.6vw,20px);font-weight:800;letter-spacing:.24em;padding-left:.24em;color:#dcdbd4}
+.draw-stage h1{margin:0;font-size:clamp(17px,4.2vw,26px);line-height:1.3;letter-spacing:-.01em;font-weight:700;color:#e6e5df}
 .draw-lead{margin:12px auto 0;max-width:600px;color:#c3c2b7;font-size:15px}
 .pick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;max-width:900px;margin:42px auto 30px}
 .pick-card{--agency:#9b9a92;position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;padding:26px 14px 20px;
