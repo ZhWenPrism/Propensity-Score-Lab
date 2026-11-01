@@ -21,6 +21,7 @@ import sqlite3
 import sys
 from datetime import datetime, timedelta
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from pathlib import PureWindowsPath
 from socketserver import ThreadingMixIn
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -123,7 +124,21 @@ class Handler(SimpleHTTPRequestHandler):
     def translate_path(self, path):
         path = posixpath.normpath(unquote(urlsplit(path).path))
         parts = [p for p in path.split("/") if p and p not in (".", "..")]
-        return os.path.join(SITE_DIR, *parts)
+        if any("\\" in part or PureWindowsPath(part).drive for part in parts):
+            raise ValueError("invalid static path")
+        root = os.path.realpath(SITE_DIR)
+        resolved = os.path.realpath(os.path.join(root, *parts))
+        if os.path.commonpath([root, resolved]) != root:
+            raise ValueError("static path leaves the site directory")
+        return resolved
+
+    def send_head(self):
+        try:
+            self.translate_path(self.path)
+        except ValueError:
+            self.send_error(404, "Not found")
+            return None
+        return SimpleHTTPRequestHandler.send_head(self)
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s %s\n" % (self.log_date_time_string(), urlsplit(self.path).path))
