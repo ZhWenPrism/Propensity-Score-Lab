@@ -62,6 +62,20 @@ def clean(text, limit):
     return " ".join(str(text or "").split())[:limit]
 
 
+def enum_list(values, choices):
+    if values is None:
+        return []
+    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+        raise ValueError("bad selection list")
+    return [value for value in values if value in choices]
+
+
+def enum_choice(value, choices):
+    if value is not None and not isinstance(value, str):
+        raise ValueError("bad selection")
+    return value if value in choices else None
+
+
 def validate(data):
     """Return a sanitised submission or raise ValueError."""
     if not isinstance(data, dict):
@@ -69,19 +83,19 @@ def validate(data):
     name = clean(data.get("name"), 40)
     agency = data.get("agency")
     answers = data.get("answers")
-    if not name or agency not in AGENCIES or not isinstance(answers, list) or not 1 <= len(answers) <= 12:
+    if not name or not isinstance(agency, str) or agency not in AGENCIES or not isinstance(answers, list) or not 1 <= len(answers) <= 12:
         raise ValueError("missing fields")
     out_answers = []
     for a in answers:
         if not isinstance(a, dict):
             raise ValueError("bad answer")
-        layers = [k for k in (a.get("layers") or []) if k in LAYERS]
+        layers = enum_list(a.get("layers"), LAYERS)
         out_answers.append({"id": clean(a.get("id"), 12), "layers": layers, "reason": clean(a.get("reason"), 400)})
     d = data.get("decision") if isinstance(data.get("decision"), dict) else {}
     decision = {
-        "ndd": d.get("ndd") if d.get("ndd") in DECISIONS else None,
-        "dd": d.get("dd") if d.get("dd") in DECISIONS else None,
-        "rm": [k for k in (d.get("rm") or []) if k in RISK_TOOLS],
+        "ndd": enum_choice(d.get("ndd"), DECISIONS),
+        "dd": enum_choice(d.get("dd"), DECISIONS),
+        "rm": enum_list(d.get("rm"), RISK_TOOLS),
         "reason": clean(d.get("reason"), 400),
     }
     p = data.get("primary") if isinstance(data.get("primary"), dict) else {}
