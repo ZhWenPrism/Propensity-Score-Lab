@@ -28,7 +28,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SITE_DIR = os.path.abspath(os.environ.get("BRA_SITE_DIR", os.path.join(HERE, "..", "demo")))
 DATA_DIR = os.path.abspath(os.environ.get("BRA_DATA_DIR", os.path.join(HERE, "data")))
 KEY_FILE = os.environ.get("BRA_KEY_FILE", os.path.join(DATA_DIR, "teacher_key"))
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("BRA_PORT", "8080"))
+PORT = int(os.environ.get("BRA_PORT", "8080"))
 HOST = os.environ.get("BRA_HOST", "0.0.0.0")
 DB = os.path.join(DATA_DIR, "submissions.db")
 MAX_BODY = 64 * 1024
@@ -187,13 +187,15 @@ class Server(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 
-def main():
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    port = int(argv[0]) if argv else PORT
     os.makedirs(DATA_DIR, exist_ok=True)
     db().close()
     if not os.path.isfile(os.path.join(SITE_DIR, "index.html")):
         sys.exit("site not found: %s" % SITE_DIR)
-    print("serving %s on %s:%d; data in %s" % (SITE_DIR, HOST, PORT, DATA_DIR), flush=True)
-    Server((HOST, PORT), Handler).serve_forever()
+    print("serving %s on %s:%d; data in %s" % (SITE_DIR, HOST, port, DATA_DIR), flush=True)
+    Server((HOST, port), Handler).serve_forever()
 
 
 if __name__ == "__main__":
