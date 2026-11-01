@@ -176,7 +176,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(200, {"ok": True})
         if url.path == "/api/submissions.csv":
             key, given = teacher_key(), (parse_qs(url.query).get("key") or [""])[0]
-            if not key or not hmac.compare_digest(key, given):
+            if not key or not hmac.compare_digest(key.encode("utf-8"), given.encode("utf-8")):
                 return self.send_json(403, {"ok": False, "error": "forbidden"})
             body = export_csv()
             self.send_response(200)
