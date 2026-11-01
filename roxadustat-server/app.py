@@ -21,6 +21,7 @@ import sqlite3
 import sys
 from datetime import datetime, timedelta
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+from pathlib import PureWindowsPath
 from socketserver import ThreadingMixIn
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -28,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SITE_DIR = os.path.abspath(os.environ.get("BRA_SITE_DIR", os.path.join(HERE, "..", "demo")))
 DATA_DIR = os.path.abspath(os.environ.get("BRA_DATA_DIR", os.path.join(HERE, "data")))
 KEY_FILE = os.environ.get("BRA_KEY_FILE", os.path.join(DATA_DIR, "teacher_key"))
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("BRA_PORT", "8080"))
+PORT = int(os.environ.get("BRA_PORT", "8080"))
 HOST = os.environ.get("BRA_HOST", "0.0.0.0")
 DB = os.path.join(DATA_DIR, "submissions.db")
 MAX_BODY = 64 * 1024
@@ -61,6 +62,20 @@ def clean(text, limit):
     return " ".join(str(text or "").split())[:limit]
 
 
+def enum_list(values, choices):
+    if values is None:
+        return []
+    if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
+        raise ValueError("bad selection list")
+    return [value for value in values if value in choices]
+
+
+def enum_choice(value, choices):
+    if value is not None and not isinstance(value, str):
+        raise ValueError("bad selection")
+    return value if value in choices else None
+
+
 def validate(data):
     """Return a sanitised submission or raise ValueError."""
     if not isinstance(data, dict):
@@ -68,19 +83,19 @@ def validate(data):
     name = clean(data.get("name"), 40)
     agency = data.get("agency")
     answers = data.get("answers")
-    if not name or agency not in AGENCIES or not isinstance(answers, list) or not 1 <= len(answers) <= 12:
+    if not name or not isinstance(agency, str) or agency not in AGENCIES or not isinstance(answers, list) or not 1 <= len(answers) <= 12:
         raise ValueError("missing fields")
     out_answers = []
     for a in answers:
         if not isinstance(a, dict):
             raise ValueError("bad answer")
-        layers = [k for k in (a.get("layers") or []) if k in LAYERS]
+        layers = enum_list(a.get("layers"), LAYERS)
         out_answers.append({"id": clean(a.get("id"), 12), "layers": layers, "reason": clean(a.get("reason"), 400)})
     d = data.get("decision") if isinstance(data.get("decision"), dict) else {}
     decision = {
-        "ndd": d.get("ndd") if d.get("ndd") in DECISIONS else None,
-        "dd": d.get("dd") if d.get("dd") in DECISIONS else None,
-        "rm": [k for k in (d.get("rm") or []) if k in RISK_TOOLS],
+        "ndd": enum_choice(d.get("ndd"), DECISIONS),
+        "dd": enum_choice(d.get("dd"), DECISIONS),
+        "rm": enum_list(d.get("rm"), RISK_TOOLS),
         "reason": clean(d.get("reason"), 400),
     }
     p = data.get("primary") if isinstance(data.get("primary"), dict) else {}
@@ -123,7 +138,21 @@ class Handler(SimpleHTTPRequestHandler):
     def translate_path(self, path):
         path = posixpath.normpath(unquote(urlsplit(path).path))
         parts = [p for p in path.split("/") if p and p not in (".", "..")]
-        return os.path.join(SITE_DIR, *parts)
+        if any("\\" in part or PureWindowsPath(part).drive for part in parts):
+            raise ValueError("invalid static path")
+        root = os.path.realpath(SITE_DIR)
+        resolved = os.path.realpath(os.path.join(root, *parts))
+        if os.path.commonpath([root, resolved]) != root:
+            raise ValueError("static path leaves the site directory")
+        return resolved
+
+    def send_head(self):
+        try:
+            self.translate_path(self.path)
+        except ValueError:
+            self.send_error(404, "Not found")
+            return None
+        return SimpleHTTPRequestHandler.send_head(self)
 
     def log_message(self, fmt, *args):
         sys.stderr.write("%s %s\n" % (self.log_date_time_string(), urlsplit(self.path).path))
@@ -147,7 +176,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(200, {"ok": True})
         if url.path == "/api/submissions.csv":
             key, given = teacher_key(), (parse_qs(url.query).get("key") or [""])[0]
-            if not key or not hmac.compare_digest(key, given):
+            if not key or not hmac.compare_digest(key.encode("utf-8"), given.encode("utf-8")):
                 return self.send_json(403, {"ok": False, "error": "forbidden"})
             body = export_csv()
             self.send_response(200)
@@ -187,13 +216,15 @@ class Server(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 
-def main():
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    port = int(argv[0]) if argv else PORT
     os.makedirs(DATA_DIR, exist_ok=True)
     db().close()
     if not os.path.isfile(os.path.join(SITE_DIR, "index.html")):
         sys.exit("site not found: %s" % SITE_DIR)
-    print("serving %s on %s:%d; data in %s" % (SITE_DIR, HOST, PORT, DATA_DIR), flush=True)
-    Server((HOST, PORT), Handler).serve_forever()
+    print("serving %s on %s:%d; data in %s" % (SITE_DIR, HOST, port, DATA_DIR), flush=True)
+    Server((HOST, port), Handler).serve_forever()
 
 
 if __name__ == "__main__":
