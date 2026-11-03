@@ -37,9 +37,10 @@ const invertSymmetric = m => m.map((_, j) => solveLinear(m, m.map((__, i) => (i 
 
 // erfc(|z|/√2), Numerical Recipes erfcc (fractional error < 1.2e-7)
 function twoSidedP(z) {
-  if (!Number.isFinite(z)) return NaN;
+  if (!Number.isFinite(z)) return z === Infinity || z === -Infinity ? 0 : NaN;
   const x = Math.abs(z) / Math.SQRT2, t = 1 / (1 + 0.5 * x);
-  return t * Math.exp(-x * x - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277)))))))));
+  const probability = t * Math.exp(-x * x - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277)))))))));
+  return clamp(probability, 0, 1);
 }
 
 function fitPropensity(rows, keys) {
@@ -128,7 +129,9 @@ function smdFor(cohort, w, key, pooled) {
     if (!w[i]) return;
     if (p.treated) { s1 += w[i] * p[key]; w1 += w[i]; } else { s0 += w[i] * p[key]; w0 += w[i]; }
   });
-  return w1 && w0 && pooled ? (s1 / w1 - s0 / w0) / pooled : 0;
+  if (!(w1 > 0 && w0 > 0) || !Number.isFinite(pooled) || pooled < 0) return NaN;
+  const difference = s1 / w1 - s0 / w0;
+  return pooled > 0 ? difference / pooled : difference === 0 ? 0 : NaN;
 }
 
 function ess(cohort, w, group) {
