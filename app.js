@@ -123,8 +123,7 @@ function renderLove() {
     tag: `${ROLE_LABEL[c.role]}${state.keys.has(c.key) ? "" : " · 未入模"}`,
     values: Object.fromEntries(METHODS.map(m => [m, main.balance[m][c.key]]))
   }));
-  const maxV = Math.max(...rows.flatMap(r => METHODS.map(m => Math.abs(r.values[m]))));
-  const maxX = maxV > 1 ? Math.ceil(maxV * 4) / 4 : Math.max(0.4, Math.ceil(maxV * 10) / 10);
+  const maxX = lovePlotMax(rows);
   $("love-plot").innerHTML = loveSvg(rows, maxX);
   $("love-legend").innerHTML = METHODS.map(m => `<span>${loveKey(m)}${LOVE_MARKS[m].label}</span>`).join("");
   $("balance-rows").innerHTML = rows.map(r => `<tr><th scope="row">${r.name}</th><td>${r.inModel ? "入模" : "未入模"}</td>${METHODS.map((m, i) => {

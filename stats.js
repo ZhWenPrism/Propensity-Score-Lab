@@ -129,7 +129,9 @@ function smdFor(cohort, w, key, pooled) {
     if (!w[i]) return;
     if (p.treated) { s1 += w[i] * p[key]; w1 += w[i]; } else { s0 += w[i] * p[key]; w0 += w[i]; }
   });
-  return w1 && w0 && pooled ? (s1 / w1 - s0 / w0) / pooled : 0;
+  if (!(w1 > 0 && w0 > 0) || !Number.isFinite(pooled) || pooled < 0) return NaN;
+  const difference = s1 / w1 - s0 / w0;
+  return pooled > 0 ? difference / pooled : difference === 0 ? 0 : NaN;
 }
 
 function ess(cohort, w, group) {

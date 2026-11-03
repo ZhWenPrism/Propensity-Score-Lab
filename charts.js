@@ -152,6 +152,12 @@ const LOVE_MARKS = {
 };
 const loveKey = m => `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">${LOVE_MARKS[m].draw(6, 6 - (m === "iptw" ? -0.4 : 0))}</svg>`;
 
+function lovePlotMax(rows) {
+  const values = rows.flatMap(r => METHODS.map(m => Math.abs(r.values[m]))).filter(Number.isFinite);
+  const maxV = Math.max(0, ...values);
+  return maxV > 1 ? Math.ceil(maxV * 4) / 4 : Math.max(0.4, Math.ceil(maxV * 10) / 10);
+}
+
 function loveSvg(rows, maxX) {
   const rowH = 32, W = 560, L = 150, R = 18, T = 8, B = 26, H = T + rows.length * rowH + B;
   const sx = v => L + Math.min(v, maxX) / maxX * (W - L - R);
@@ -168,6 +174,7 @@ function loveSvg(rows, maxX) {
     s += text(10, y + 11, row.tag, `class="row-tag"`);
     METHODS.forEach(m => {
       const v = Math.abs(row.values[m]);
+      if (!Number.isFinite(v)) return;
       s += `<g data-tip="${row.name} · ${LOVE_MARKS[m].label}<br>|SMD| = ${fmt(v, 3)}${v > maxX ? "（超出坐标范围）" : ""}">${LOVE_MARKS[m].draw(sx(v), y + LOVE_MARKS[m].dy)}<rect x="${sx(v) - 5}" y="${y + LOVE_MARKS[m].dy - 3}" width="10" height="6" fill="transparent"/></g>`;
     });
   });
