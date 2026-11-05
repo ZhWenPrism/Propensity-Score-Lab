@@ -107,11 +107,22 @@ function makeMatches(cohort, logit) {
   const treated = [], controls = [];
   cohort.forEach((p, i) => (p.treated ? treated : controls).push(i));
   const candidates = [];
-  for (const t of treated) for (const c of controls) {
-    const d = Math.abs(logit[t] - logit[c]);
-    if (d <= caliper + 1e-12) candidates.push([d, t, c]);
+  controls.sort((a, b) => logit[a] - logit[b] || a - b);
+  const radius = caliper + 1e-12;
+  for (const t of treated) {
+    let lower = 0, upper = controls.length;
+    while (lower < upper) {
+      const middle = Math.floor((lower + upper) / 2);
+      if (logit[t] - logit[controls[middle]] > radius) lower = middle + 1;
+      else upper = middle;
+    }
+    for (let index = lower; index < controls.length; index++) {
+      const c = controls[index], d = Math.abs(logit[t] - logit[c]);
+      if (logit[c] - logit[t] > radius) break;
+      if (d <= radius) candidates.push([d, t, c]);
+    }
   }
-  candidates.sort((a, b) => a[0] - b[0] || cohort[a[1]].subject_id - cohort[b[1]].subject_id || cohort[a[2]].subject_id - cohort[b[2]].subject_id);
+  candidates.sort((a, b) => a[0] - b[0] || cohort[a[1]].subject_id - cohort[b[1]].subject_id || cohort[a[2]].subject_id - cohort[b[2]].subject_id || a[1] - b[1] || a[2] - b[2]);
   const partner = new Map(), distance = new Map(), pairOf = new Map(), pairs = [];
   for (const [d, t, c] of candidates) {
     if (partner.has(t) || partner.has(c)) continue;
