@@ -59,7 +59,12 @@ def teacher_key():
 
 
 def clean(text, limit):
-    return " ".join(str(text or "").split())[:limit]
+    if text is None:
+        return ""
+    if not isinstance(text, str):
+        raise ValueError("expected text")
+    text.encode("utf-8")
+    return " ".join(text.split())[:limit]
 
 
 def enum_list(values, choices):
@@ -214,8 +219,11 @@ class Handler(SimpleHTTPRequestHandler):
         if not 0 < length <= MAX_BODY:
             return self.send_json(413, {"ok": False, "error": "size"})
         try:
-            sub = validate(json.loads(self.rfile.read(length).decode("utf-8")))
-        except (ValueError, UnicodeDecodeError):
+            body = self.rfile.read(length)
+            if len(body) != length:
+                raise ValueError("incomplete request body")
+            sub = validate(json.loads(body.decode("utf-8")))
+        except (ValueError, RecursionError):
             return self.send_json(400, {"ok": False, "error": "invalid"})
         created = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         con = db()
