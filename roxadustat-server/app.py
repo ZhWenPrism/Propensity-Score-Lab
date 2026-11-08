@@ -132,23 +132,37 @@ def export_csv():
     return ("﻿" + buf.getvalue()).encode("utf-8")
 
 
+def checked_static_path(path):
+    root = os.path.realpath(SITE_DIR)
+    resolved = os.path.realpath(path)
+    if os.path.commonpath([root, resolved]) != root:
+        raise ValueError("static path leaves the site directory")
+    private = [KEY_FILE] + [DB + suffix for suffix in ("", "-wal", "-shm", "-journal")]
+    if os.path.normcase(resolved) in {os.path.normcase(os.path.realpath(file)) for file in private}:
+        raise ValueError("private file")
+    return resolved
+
+
 class Handler(SimpleHTTPRequestHandler):
     server_version = "BRA"
 
     def translate_path(self, path):
         path = posixpath.normpath(unquote(urlsplit(path).path))
         parts = [p for p in path.split("/") if p and p not in (".", "..")]
-        if any("\\" in part or PureWindowsPath(part).drive for part in parts):
+        if any("\\" in part or PureWindowsPath(part).drive or (os.name == "nt" and ":" in part)
+               for part in parts):
             raise ValueError("invalid static path")
-        root = os.path.realpath(SITE_DIR)
-        resolved = os.path.realpath(os.path.join(root, *parts))
-        if os.path.commonpath([root, resolved]) != root:
-            raise ValueError("static path leaves the site directory")
-        return resolved
+        return checked_static_path(os.path.join(SITE_DIR, *parts))
 
     def send_head(self):
         try:
-            self.translate_path(self.path)
+            path = self.translate_path(self.path)
+            if os.path.isdir(path):
+                for name in ("index.html", "index.htm"):
+                    index = os.path.join(path, name)
+                    if os.path.isfile(index):
+                        checked_static_path(index)
+                        break
         except ValueError:
             self.send_error(404, "Not found")
             return None
