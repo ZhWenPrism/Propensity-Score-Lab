@@ -59,7 +59,12 @@ def teacher_key():
 
 
 def clean(text, limit):
-    return " ".join(str(text or "").split())[:limit]
+    if text is None:
+        return ""
+    if not isinstance(text, str):
+        raise ValueError("expected text")
+    text.encode("utf-8")
+    return " ".join(text.split())[:limit]
 
 
 def enum_list(values, choices):
@@ -132,23 +137,37 @@ def export_csv():
     return ("﻿" + buf.getvalue()).encode("utf-8")
 
 
+def checked_static_path(path):
+    root = os.path.realpath(SITE_DIR)
+    resolved = os.path.realpath(path)
+    if os.path.commonpath([root, resolved]) != root:
+        raise ValueError("static path leaves the site directory")
+    private = [KEY_FILE] + [DB + suffix for suffix in ("", "-wal", "-shm", "-journal")]
+    if os.path.normcase(resolved) in {os.path.normcase(os.path.realpath(file)) for file in private}:
+        raise ValueError("private file")
+    return resolved
+
+
 class Handler(SimpleHTTPRequestHandler):
     server_version = "BRA"
 
     def translate_path(self, path):
         path = posixpath.normpath(unquote(urlsplit(path).path))
         parts = [p for p in path.split("/") if p and p not in (".", "..")]
-        if any("\\" in part or PureWindowsPath(part).drive for part in parts):
+        if any("\\" in part or PureWindowsPath(part).drive or (os.name == "nt" and ":" in part)
+               for part in parts):
             raise ValueError("invalid static path")
-        root = os.path.realpath(SITE_DIR)
-        resolved = os.path.realpath(os.path.join(root, *parts))
-        if os.path.commonpath([root, resolved]) != root:
-            raise ValueError("static path leaves the site directory")
-        return resolved
+        return checked_static_path(os.path.join(SITE_DIR, *parts))
 
     def send_head(self):
         try:
-            self.translate_path(self.path)
+            path = self.translate_path(self.path)
+            if os.path.isdir(path):
+                for name in ("index.html", "index.htm"):
+                    index = os.path.join(path, name)
+                    if os.path.isfile(index):
+                        checked_static_path(index)
+                        break
         except ValueError:
             self.send_error(404, "Not found")
             return None
@@ -200,8 +219,11 @@ class Handler(SimpleHTTPRequestHandler):
         if not 0 < length <= MAX_BODY:
             return self.send_json(413, {"ok": False, "error": "size"})
         try:
-            sub = validate(json.loads(self.rfile.read(length).decode("utf-8")))
-        except (ValueError, UnicodeDecodeError):
+            body = self.rfile.read(length)
+            if len(body) != length:
+                raise ValueError("incomplete request body")
+            sub = validate(json.loads(body.decode("utf-8")))
+        except (ValueError, RecursionError):
             return self.send_json(400, {"ok": False, "error": "invalid"})
         created = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
         con = db()
