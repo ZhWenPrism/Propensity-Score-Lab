@@ -178,7 +178,9 @@ class Handler(SimpleHTTPRequestHandler):
         sys.stderr.write("%s %s\n" % (self.log_date_time_string(), urlsplit(self.path).path))
 
     def end_headers(self):
-        if urlsplit(self.path).path in ("/", "/index.html"):
+        if urlsplit(self.path).path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-store")
+        elif urlsplit(self.path).path in ("/", "/index.html"):
             self.send_header("Cache-Control", "no-cache")
         SimpleHTTPRequestHandler.end_headers(self)
 
