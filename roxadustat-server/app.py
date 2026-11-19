@@ -10,6 +10,7 @@ SQLite in BRA_DATA_DIR. The teacher downloads them as CSV with the key stored in
 Environment: BRA_PORT (default 8080; or pass the port as the first argument), BRA_HOST (default 0.0.0.0;
 127.0.0.1 when a reverse proxy sits in front), BRA_SITE_DIR, BRA_DATA_DIR, BRA_KEY_FILE.
 """
+from contextlib import closing
 import csv
 import hmac
 import io
@@ -46,7 +47,11 @@ mimetypes.add_type("text/javascript", ".js")
 
 def db():
     con = sqlite3.connect(DB, timeout=10)
-    con.execute("CREATE TABLE IF NOT EXISTS submissions (id INTEGER PRIMARY KEY, created_at TEXT, name TEXT, agency TEXT, payload TEXT)")
+    try:
+        con.execute("CREATE TABLE IF NOT EXISTS submissions (id INTEGER PRIMARY KEY, created_at TEXT, name TEXT, agency TEXT, payload TEXT)")
+    except BaseException:
+        con.close()
+        raise
     return con
 
 
@@ -115,9 +120,8 @@ def safe_cell(value):
 
 
 def export_csv():
-    con = db()
-    rows = con.execute("SELECT created_at, payload FROM submissions ORDER BY id").fetchall()
-    con.close()
+    with closing(db()) as con:
+        rows = con.execute("SELECT created_at, payload FROM submissions ORDER BY id").fetchall()
     n_q = max([len(json.loads(p)["answers"]) for _, p in rows] or [0])
     head = ["提交时间（北京时间）", "姓名", "扮演机构", "NDD 结论", "DD 结论", "风险管理", "结论理由", "NDD 主要分析", "DD 主要依据"]
     for i in range(n_q):
@@ -229,11 +233,10 @@ class Handler(SimpleHTTPRequestHandler):
         except (ValueError, RecursionError):
             return self.send_json(400, {"ok": False, "error": "invalid"})
         created = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        con = db()
-        with con:
-            cur = con.execute("INSERT INTO submissions (created_at, name, agency, payload) VALUES (?, ?, ?, ?)",
-                              (created, sub["name"], sub["agency"], json.dumps(sub, ensure_ascii=False)))
-        con.close()
+        with closing(db()) as con:
+            with con:
+                cur = con.execute("INSERT INTO submissions (created_at, name, agency, payload) VALUES (?, ?, ?, ?)",
+                                  (created, sub["name"], sub["agency"], json.dumps(sub, ensure_ascii=False)))
         return self.send_json(200, {"ok": True, "id": cur.lastrowid})
 
 
