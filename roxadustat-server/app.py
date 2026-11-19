@@ -133,6 +133,7 @@ def export_csv():
                "、".join(RISK_TOOLS[k] for k in d.get("rm", [])), d.get("reason", ""), p["primary"].get("ndd", ""), p["primary"].get("dd", "")]
         for a in p["answers"]:
             row += ["、".join(LAYERS[k] for k in a["layers"]), a["reason"]]
+        row.extend([""] * (len(head) - len(row)))
         w.writerow([safe_cell(c) for c in row])
     return ("﻿" + buf.getvalue()).encode("utf-8")
 
