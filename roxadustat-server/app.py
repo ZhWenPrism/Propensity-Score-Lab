@@ -101,6 +101,9 @@ def validate(data):
             raise ValueError("bad answer")
         layers = enum_list(a.get("layers"), LAYERS)
         out_answers.append({"id": clean(a.get("id"), 12), "layers": layers, "reason": clean(a.get("reason"), 400)})
+    identifiers = [answer["id"] for answer in out_answers]
+    if any(not identifier for identifier in identifiers) or len(set(identifiers)) != len(identifiers):
+        raise ValueError("answer IDs must be non-empty and unique")
     d = data.get("decision") if isinstance(data.get("decision"), dict) else {}
     decision = {
         "ndd": enum_choice(d.get("ndd"), DECISIONS),
@@ -122,20 +125,22 @@ def safe_cell(value):
 def export_csv():
     with closing(db()) as con:
         rows = con.execute("SELECT created_at, payload FROM submissions ORDER BY id").fetchall()
-    n_q = max([len(json.loads(p)["answers"]) for _, p in rows] or [0])
+    rows = [(created, json.loads(payload)) for created, payload in rows]
+    question_ids = list(dict.fromkeys(answer["id"] for _, payload in rows for answer in payload["answers"]))
     head = ["提交时间（北京时间）", "姓名", "扮演机构", "NDD 结论", "DD 结论", "风险管理", "结论理由", "NDD 主要分析", "DD 主要依据"]
-    for i in range(n_q):
-        head += ["第 %d 题选择" % (i + 1), "第 %d 题理由" % (i + 1)]
+    for question_id in question_ids:
+        head += [question_id + " 选择", question_id + " 理由"]
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(head)
-    for created, payload in rows:
-        p = json.loads(payload)
+    for created, p in rows:
         d = p["decision"]
         when = (datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ") + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
         row = [when, p["name"], AGENCIES[p["agency"]], DECISIONS.get(d.get("ndd"), ""), DECISIONS.get(d.get("dd"), ""),
                "、".join(RISK_TOOLS[k] for k in d.get("rm", [])), d.get("reason", ""), p["primary"].get("ndd", ""), p["primary"].get("dd", "")]
-        for a in p["answers"]:
+        answers = {answer["id"]: answer for answer in p["answers"]}
+        for question_id in question_ids:
+            a = answers.get(question_id, {"layers": [], "reason": ""})
             row += ["、".join(LAYERS[k] for k in a["layers"]), a["reason"]]
         row.extend([""] * (len(head) - len(row)))
         w.writerow([safe_cell(c) for c in row])

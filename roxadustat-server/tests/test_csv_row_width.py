@@ -7,7 +7,7 @@ class CSVRowWidthTest(ServerCase):
     def test_different_question_counts_keep_columns_aligned(self):
         short = payload()
         long = payload()
-        long["answers"] = long["answers"] * 3
+        long["answers"] = [dict(long["answers"][0], id=f"q{i}") for i in range(1, 4)]
         for value in (short, long):
             self.assertEqual(self.request("/api/submit", value)[0], 200)
         status, body = self.request("/api/submissions.csv?key=example-key")
