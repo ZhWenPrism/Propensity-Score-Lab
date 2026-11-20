@@ -145,6 +145,12 @@ async function submitHomework() {
     const r = await fetch("api/submit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     online = r.ok && !!(await r.json()).ok;
   } catch { /* static hosting: no endpoint */ }
+  if (!online && apiOnline) {
+    msg.textContent = "提交失败，请重试。";
+    $("hw-submit").disabled = false;
+    h.submittedAt = null;
+    return;
+  }
   h.submitted = true; h.online = online;
   save(); renderHomework();
   $("hw-panel").scrollIntoView();
