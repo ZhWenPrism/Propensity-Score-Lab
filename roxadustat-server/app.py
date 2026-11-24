@@ -250,6 +250,8 @@ class Handler(SimpleHTTPRequestHandler):
             body = self.rfile.read(length)
             if len(body) != length:
                 raise ValueError("incomplete request body")
+            if self.headers.get_content_type() != "application/json":
+                return self.send_json(415, {"ok": False, "error": "media_type"})
             sub = validate(json.loads(body.decode("utf-8")))
         except (ValueError, RecursionError):
             return self.send_json(400, {"ok": False, "error": "invalid"})
