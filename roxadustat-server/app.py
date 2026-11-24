@@ -132,7 +132,7 @@ def export_csv():
         head += [question_id + " 选择", question_id + " 理由"]
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(head)
+    w.writerow([safe_cell(cell) for cell in head])
     for created, p in rows:
         d = p["decision"]
         when = (datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ") + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
