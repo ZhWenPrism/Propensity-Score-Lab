@@ -77,11 +77,13 @@ def enum_list(values, choices):
         return []
     if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
         raise ValueError("bad selection list")
-    return [value for value in values if value in choices]
+    if any(value not in choices for value in values) or len(set(values)) != len(values):
+        raise ValueError("unknown or repeated selection")
+    return list(values)
 
 
 def enum_choice(value, choices):
-    if value is not None and not isinstance(value, str):
+    if value is not None and (not isinstance(value, str) or value not in choices):
         raise ValueError("bad selection")
     return value if value in choices else None
 
