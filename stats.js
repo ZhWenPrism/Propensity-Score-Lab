@@ -184,7 +184,7 @@ function coxFit(time, event, x, w, cluster, robust) {
   }
   const evaluate = beta => {
     let S0 = 0, S1 = 0, U = 0, I = 0, ll = 0;
-    const at = new Array(groups.length);
+    const at = robust ? new Array(groups.length) : null;
     for (let g = groups.length - 1; g >= 0; g--) {
       let dW = 0, dWx = 0;
       for (const i of groups[g].members) {
@@ -198,7 +198,7 @@ function coxFit(time, event, x, w, cluster, robust) {
         I += dW * xbar * (1 - xbar);
         ll += beta * dWx - dW * Math.log(S0);
       }
-      at[g] = { S0, S1, dW };
+      if (at) at[g] = { S0, S1, dW };
     }
     return { U, I, ll, at };
   };

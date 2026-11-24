@@ -77,11 +77,13 @@ def enum_list(values, choices):
         return []
     if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
         raise ValueError("bad selection list")
-    return [value for value in values if value in choices]
+    if any(value not in choices for value in values) or len(set(values)) != len(values):
+        raise ValueError("unknown or repeated selection")
+    return list(values)
 
 
 def enum_choice(value, choices):
-    if value is not None and not isinstance(value, str):
+    if value is not None and (not isinstance(value, str) or value not in choices):
         raise ValueError("bad selection")
     return value if value in choices else None
 
@@ -100,7 +102,10 @@ def validate(data):
         if not isinstance(a, dict):
             raise ValueError("bad answer")
         layers = enum_list(a.get("layers"), LAYERS)
-        out_answers.append({"id": clean(a.get("id"), 12), "layers": layers, "reason": clean(a.get("reason"), 400)})
+        reason = clean(a.get("reason"), 400)
+        if len(layers) != 1 or not reason:
+            raise ValueError("answer requires one layer and a reason")
+        out_answers.append({"id": clean(a.get("id"), 12), "layers": layers, "reason": reason})
     identifiers = [answer["id"] for answer in out_answers]
     if any(not identifier for identifier in identifiers) or len(set(identifiers)) != len(identifiers):
         raise ValueError("answer IDs must be non-empty and unique")
@@ -132,7 +137,7 @@ def export_csv():
         head += [question_id + " 选择", question_id + " 理由"]
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(head)
+    w.writerow([safe_cell(cell) for cell in head])
     for created, p in rows:
         d = p["decision"]
         when = (datetime.strptime(created, "%Y-%m-%dT%H:%M:%SZ") + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
@@ -199,7 +204,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def do_GET(self):
         url = urlsplit(self.path)
@@ -215,25 +221,37 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Content-Disposition", "attachment; filename=\"homework.csv\"")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            if self.command != "HEAD":
+                self.wfile.write(body)
             return None
         if url.path.startswith("/api/"):
             return self.send_json(404, {"ok": False})
         return SimpleHTTPRequestHandler.do_GET(self)
 
+    def do_HEAD(self):
+        if urlsplit(self.path).path.startswith("/api/"):
+            return self.do_GET()
+        return SimpleHTTPRequestHandler.do_HEAD(self)
+
     def do_POST(self):
         if urlsplit(self.path).path != "/api/submit":
             return self.send_json(404, {"ok": False})
         try:
-            length = int(self.headers.get("Content-Length") or 0)
+            lengths = [int(value.strip()) for header in self.headers.get_all("Content-Length", [])
+                       for value in header.split(",")]
         except ValueError:
-            length = 0
+            lengths = []
+        if len(set(lengths)) > 1:
+            return self.send_json(400, {"ok": False, "error": "invalid"})
+        length = lengths[0] if lengths else 0
         if not 0 < length <= MAX_BODY:
             return self.send_json(413, {"ok": False, "error": "size"})
         try:
             body = self.rfile.read(length)
             if len(body) != length:
                 raise ValueError("incomplete request body")
+            if self.headers.get_content_type() != "application/json":
+                return self.send_json(415, {"ok": False, "error": "media_type"})
             sub = validate(json.loads(body.decode("utf-8")))
         except (ValueError, RecursionError):
             return self.send_json(400, {"ok": False, "error": "invalid"})
