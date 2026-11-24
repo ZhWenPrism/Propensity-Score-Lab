@@ -237,9 +237,13 @@ class Handler(SimpleHTTPRequestHandler):
         if urlsplit(self.path).path != "/api/submit":
             return self.send_json(404, {"ok": False})
         try:
-            length = int(self.headers.get("Content-Length") or 0)
+            lengths = [int(value.strip()) for header in self.headers.get_all("Content-Length", [])
+                       for value in header.split(",")]
         except ValueError:
-            length = 0
+            lengths = []
+        if len(set(lengths)) > 1:
+            return self.send_json(400, {"ok": False, "error": "invalid"})
+        length = lengths[0] if lengths else 0
         if not 0 < length <= MAX_BODY:
             return self.send_json(413, {"ok": False, "error": "size"})
         try:

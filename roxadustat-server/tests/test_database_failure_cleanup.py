@@ -1,3 +1,4 @@
+from http.client import HTTPMessage
 import io
 import json
 import sqlite3
@@ -30,7 +31,9 @@ class DatabaseFailureCleanupTest(unittest.TestCase):
         body = json.dumps(payload()).encode("utf-8")
         handler = object.__new__(app.Handler)
         handler.path = "/api/submit"
-        handler.headers = {"Content-Length": str(len(body))}
+        handler.headers = HTTPMessage()
+        handler.headers["Content-Length"] = str(len(body))
+        handler.headers["Content-Type"] = "application/json"
         handler.rfile = io.BytesIO(body)
         con = MagicMock()
         con.execute.side_effect = sqlite3.OperationalError("insert failed")
