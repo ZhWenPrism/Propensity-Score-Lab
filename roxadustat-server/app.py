@@ -199,7 +199,8 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
     def do_GET(self):
         url = urlsplit(self.path)
@@ -215,11 +216,17 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Content-Disposition", "attachment; filename=\"homework.csv\"")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            if self.command != "HEAD":
+                self.wfile.write(body)
             return None
         if url.path.startswith("/api/"):
             return self.send_json(404, {"ok": False})
         return SimpleHTTPRequestHandler.do_GET(self)
+
+    def do_HEAD(self):
+        if urlsplit(self.path).path.startswith("/api/"):
+            return self.do_GET()
+        return SimpleHTTPRequestHandler.do_HEAD(self)
 
     def do_POST(self):
         if urlsplit(self.path).path != "/api/submit":
