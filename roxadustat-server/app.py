@@ -102,7 +102,10 @@ def validate(data):
         if not isinstance(a, dict):
             raise ValueError("bad answer")
         layers = enum_list(a.get("layers"), LAYERS)
-        out_answers.append({"id": clean(a.get("id"), 12), "layers": layers, "reason": clean(a.get("reason"), 400)})
+        reason = clean(a.get("reason"), 400)
+        if len(layers) != 1 or not reason:
+            raise ValueError("answer requires one layer and a reason")
+        out_answers.append({"id": clean(a.get("id"), 12), "layers": layers, "reason": reason})
     identifiers = [answer["id"] for answer in out_answers]
     if any(not identifier for identifier in identifiers) or len(set(identifiers)) != len(identifiers):
         raise ValueError("answer IDs must be non-empty and unique")
